@@ -9,3 +9,22 @@ create policy "owners manage projects" on public.projects for all to authenticat
 create policy "owners manage screens" on public.screens for all to authenticated using (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid()))) with check (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
 create policy "owners manage deployments" on public.deployments for all to authenticated using (exists (select 1 from public.projects p join public.organizations o on o.id = p.organization_id where p.id = project_id and o.owner_id = (select auth.uid()))) with check (exists (select 1 from public.projects p join public.organizations o on o.id = p.organization_id where p.id = project_id and o.owner_id = (select auth.uid())));
 grant usage on schema public to authenticated; grant select, insert, update, delete on public.organizations, public.projects, public.screens, public.deployments to authenticated;
+
+create or replace function public.handle_new_studio_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.organizations (owner_id, name)
+  values (new.id, coalesce(nullif(new.raw_user_meta_data ->> 'company_name', ''), 'Yeni İşletme'));
+  return new;
+end;
+$$;
+
+revoke all on function public.handle_new_studio_user() from public, anon, authenticated;
+
+create trigger on_studio_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_studio_user();
