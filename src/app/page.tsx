@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Bell, ChevronRight, CircleHelp, Clock3, Film, LayoutDashboard, LogOut, Menu, MonitorPlay, Play, Plus, Search, Send, Settings, Sparkles, Upload, Users, WandSparkles, X, Zap } from "lucide-react";
+import { Activity, Bell, ChevronRight, CircleHelp, Clock3, Film, LayoutDashboard, LogOut, Menu, MonitorPlay, Pencil, Play, Plus, Search, Send, Settings, Sparkles, Trash2, Upload, Users, WandSparkles, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -18,10 +18,12 @@ const demoProjects = [
   { title: "Yeni Sezon", size: "1920 × 1080", status: "Gönderildi", color: "from-cyan-500 to-blue-900", time: "Dün, 18:42" },
 ];
 const demoScreens = [
-  { name: "Merkez Mağaza", location: "Kadıköy / İstanbul", status: "Yayında", resolution: "1920 × 640" },
-  { name: "Şube 02", location: "Ümraniye / İstanbul", status: "Yayında", resolution: "1280 × 384" },
-  { name: "Vitrin Ekranı", location: "Ataşehir / İstanbul", status: "Beklemede", resolution: "1920 × 1080" },
+  { id: "demo-1", name: "Merkez Mağaza", location: "Kadıköy / İstanbul", status: "Yayında", resolution: "1920 × 640", width: 1920, height: 640 },
+  { id: "demo-2", name: "Şube 02", location: "Ümraniye / İstanbul", status: "Yayında", resolution: "1280 × 384", width: 1280, height: 384 },
+  { id: "demo-3", name: "Vitrin Ekranı", location: "Ataşehir / İstanbul", status: "Beklemede", resolution: "1920 × 1080", width: 1920, height: 1080 },
 ];
+
+type ScreenItem = (typeof demoScreens)[number];
 
 export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -32,6 +34,7 @@ export default function Home() {
   const [screens, setScreens] = useState(demoScreens);
   const [dataReady, setDataReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [screenModal, setScreenModal] = useState<ScreenItem | "new" | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
 
@@ -59,10 +62,13 @@ export default function Home() {
         time: new Intl.RelativeTimeFormat("tr", { numeric: "auto" }).format(-Math.max(1, Math.round((Date.now() - new Date(item.created_at).getTime()) / 60000)), "minute"),
       })));
       setScreens((screenResult.data ?? []).map((item) => ({
+        id: item.id,
         name: item.name,
         location: item.location || "Konum eklenmedi",
         status: item.last_seen_at && Date.now() - new Date(item.last_seen_at).getTime() < 300000 ? "Yayında" : "Beklemede",
         resolution: `${item.width} × ${item.height}`,
+        width: item.width,
+        height: item.height,
       })));
       setDataReady(true);
     }
@@ -90,6 +96,25 @@ export default function Home() {
     }
     setSaving(false);
   }
+
+  async function saveScreen(values: { name: string; location: string; width: number; height: number }) {
+    if (!organizationId) return;
+    const supabase = createClient();
+    if (screenModal && screenModal !== "new") {
+      const { data, error } = await supabase.from("screens").update(values).eq("id", screenModal.id).select("id,name,location,width,height,last_seen_at").single();
+      if (!error && data) setScreens((current) => current.map((screen) => screen.id === data.id ? { id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: "Beklemede" } : screen));
+    } else {
+      const { data, error } = await supabase.from("screens").insert({ organization_id: organizationId, ...values }).select("id,name,location,width,height,last_seen_at").single();
+      if (!error && data) setScreens((current) => [{ id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: "Beklemede" }, ...current].slice(0, 5));
+    }
+    setScreenModal(null);
+  }
+
+  async function deleteScreen(screen: ScreenItem) {
+    if (screen.id.startsWith("demo-")) return;
+    const { error } = await createClient().from("screens").delete().eq("id", screen.id);
+    if (!error) setScreens((current) => current.filter((item) => item.id !== screen.id));
+  }
   async function signOut() {
     await createClient().auth.signOut();
     router.replace("/giris");
@@ -115,12 +140,28 @@ export default function Home() {
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
             <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">Son projeler</h2><p className="mt-1 text-xs text-zinc-600">Üretim ve yayın geçmişiniz</p></div><button className="text-xs text-cyan-400 hover:text-cyan-300">Tümünü gör</button></div>{projects.length ? <div className="space-y-3">{projects.map((p) => <div key={`${p.title}-${p.time}`} className="group flex items-center gap-4 rounded-2xl border border-white/[.055] bg-white/[.018] p-3 transition hover:border-cyan-400/20 hover:bg-white/[.03]"><div className={`relative grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br ${p.color}`}><div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_20%,rgba(255,255,255,.18)_48%,transparent_76%)] bg-[length:220%_100%]" /><Play size={17} fill="white" className="relative" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.title}</p><p className="mt-1 text-[11px] text-zinc-600">{p.size} · {p.time}</p></div><span className={`hidden rounded-full px-2.5 py-1 text-[10px] sm:inline ${p.status === "Hazır" ? "bg-cyan-400/10 text-cyan-300" : p.status === "Gönderildi" ? "bg-emerald-400/10 text-emerald-400" : "bg-amber-400/10 text-amber-300"}`}>{p.status}</span><button className="rounded-lg p-2 text-zinc-600 group-hover:text-white"><ChevronRight size={18} /></button></div>)}</div> : <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-white/[.08] bg-gradient-to-b from-white/[.02] to-transparent text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/[.08] text-cyan-400"><Film size={22} /></div><p className="mt-4 text-sm font-medium">İlk projenizi oluşturun</p><p className="mt-1 text-xs text-zinc-600">AI Studio ile birkaç dakikada başlayın.</p></div></div>}</section>
-            <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">LED ekranlar</h2><p className="mt-1 text-xs text-zinc-600">Uzaktan bağlı cihazlar</p></div><button className="grid h-9 w-9 place-items-center rounded-xl border border-white/[.07] text-zinc-400 hover:text-white"><Plus size={17} /></button></div><div className="space-y-3">{screens.map((screen) => <div key={screen.name} className="flex items-center gap-3 rounded-2xl border border-white/[.055] p-3.5"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/[.08] text-cyan-400"><MonitorPlay size={19} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-medium">{screen.name}</p><span className={`h-1.5 w-1.5 rounded-full ${screen.status === "Yayında" ? "bg-emerald-400" : "bg-amber-400"}`} /></div><p className="mt-1 truncate text-[10px] text-zinc-600">{screen.location} · {screen.resolution}</p></div><button className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:border-cyan-400/30 hover:text-cyan-300" aria-label={`${screen.name} ekranına gönder`}><Send size={15} /></button></div>)}</div><div className="mt-4 flex items-center gap-2 rounded-xl bg-white/[.025] p-3 text-[11px] text-zinc-600"><Clock3 size={14} /> Son senkronizasyon: şimdi</div></section>
+            <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">LED ekranlar</h2><p className="mt-1 text-xs text-zinc-600">Uzaktan bağlı cihazlar</p></div><button onClick={() => setScreenModal("new")} className="grid h-9 w-9 place-items-center rounded-xl border border-white/[.07] text-zinc-400 hover:border-cyan-400/30 hover:text-cyan-300" aria-label="Yeni LED ekran ekle"><Plus size={17} /></button></div>{screens.length ? <div className="space-y-3">{screens.map((screen) => <div key={screen.id} className="group flex items-center gap-3 rounded-2xl border border-white/[.055] p-3.5 transition hover:border-cyan-400/15"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/[.08] text-cyan-400"><MonitorPlay size={19} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-medium">{screen.name}</p><span className={`h-1.5 w-1.5 rounded-full ${screen.status === "Yayında" ? "bg-emerald-400" : "bg-amber-400"}`} /></div><p className="mt-1 truncate text-[10px] text-zinc-600">{screen.location} · {screen.resolution}</p></div><div className="flex gap-1 opacity-60 transition group-hover:opacity-100"><button onClick={() => setScreenModal(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:text-cyan-300" aria-label={`${screen.name} ekranını düzenle`}><Pencil size={14} /></button><button onClick={() => deleteScreen(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:text-red-300" aria-label={`${screen.name} ekranını sil`}><Trash2 size={14} /></button><button className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:border-cyan-400/30 hover:text-cyan-300" aria-label={`${screen.name} ekranına gönder`}><Send size={14} /></button></div></div>)}</div> : <button onClick={() => setScreenModal("new")} className="grid min-h-48 w-full place-items-center rounded-2xl border border-dashed border-white/[.08] bg-gradient-to-b from-white/[.02] to-transparent text-center"><span><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/[.08] text-cyan-400"><MonitorPlay size={22} /></span><span className="mt-4 block text-sm font-medium">İlk ekranınızı bağlayın</span><span className="mt-1 block text-xs text-zinc-600">Çözünürlük ve konum bilgisini ekleyin.</span></span></button>}<div className="mt-4 flex items-center gap-2 rounded-xl bg-white/[.025] p-3 text-[11px] text-zinc-600"><Clock3 size={14} /> Son senkronizasyon: şimdi</div></section>
           </div>
         </div>
       </section>
+      {screenModal ? <ScreenModal screen={screenModal === "new" ? null : screenModal} onClose={() => setScreenModal(null)} onSave={saveScreen} /> : null}
     </main>
   );
+}
+
+function ScreenModal({ screen, onClose, onSave }: { screen: ScreenItem | null; onClose: () => void; onSave: (values: { name: string; location: string; width: number; height: number }) => Promise<void> }) {
+  const [name, setName] = useState(screen?.name ?? "");
+  const [location, setLocation] = useState(screen?.location === "Konum eklenmedi" ? "" : screen?.location ?? "");
+  const [resolution, setResolution] = useState(screen ? `${screen.width}x${screen.height}` : "1920x640");
+  const [busy, setBusy] = useState(false);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const [width, height] = resolution.split("x").map(Number);
+    setBusy(true);
+    await onSave({ name: name.trim(), location: location.trim(), width, height });
+    setBusy(false);
+  }
+  return <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="screen-modal-title"><form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-white/[.09] bg-[#0c1118] p-6 shadow-2xl shadow-cyan-950/30"><div className="mb-6 flex items-start justify-between"><div><p className="mb-2 text-[10px] font-semibold tracking-[.18em] text-cyan-400">LED AĞI</p><h2 id="screen-modal-title" className="text-xl font-semibold">{screen ? "Ekranı düzenle" : "Yeni ekran ekle"}</h2><p className="mt-1 text-xs text-zinc-500">Cihaz bilgileri uzaktan yayın için kullanılacak.</p></div><button type="button" onClick={onClose} className="rounded-xl border border-white/[.07] p-2 text-zinc-500 hover:text-white" aria-label="Pencereyi kapat"><X size={17} /></button></div><div className="space-y-4"><label className="block"><span className="mb-2 block text-xs text-zinc-400">Ekran adı</span><input required value={name} onChange={(e) => setName(e.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-black/20 px-4 text-sm outline-none focus:border-cyan-400/40" placeholder="Merkez Mağaza" /></label><label className="block"><span className="mb-2 block text-xs text-zinc-400">Konum</span><input value={location} onChange={(e) => setLocation(e.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-black/20 px-4 text-sm outline-none focus:border-cyan-400/40" placeholder="Kadıköy / İstanbul" /></label><label className="block"><span className="mb-2 block text-xs text-zinc-400">Çözünürlük</span><select value={resolution} onChange={(e) => setResolution(e.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#090c11] px-4 text-sm outline-none focus:border-cyan-400/40"><option value="1920x640">1920 × 640 — Yatay LED</option><option value="1280x384">1280 × 384 — Yatay LED</option><option value="1920x1080">1920 × 1080 — Full HD</option><option value="1080x1920">1080 × 1920 — Dikey LED</option></select></label></div><div className="mt-6 grid grid-cols-2 gap-3"><button type="button" onClick={onClose} className="h-11 rounded-xl border border-white/[.08] text-sm text-zinc-400 hover:text-white">Vazgeç</button><button disabled={busy || !name.trim()} className="h-11 rounded-xl bg-cyan-400 text-sm font-semibold text-[#051017] hover:bg-cyan-300 disabled:opacity-50">{busy ? "Kaydediliyor" : "Kaydet"}</button></div></form></div>;
 }
 
 function Logo() { return <div className="flex items-center gap-3"><div className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-xl bg-cyan-400 text-[#061017]"><Film size={21} strokeWidth={2.4} /><span className="absolute bottom-0 h-1 w-full bg-blue-600" /></div><div><p className="text-[15px] font-bold tracking-[.12em]">DEN LED</p><p className="text-[9px] tracking-[.2em] text-cyan-400">AI STUDIO</p></div></div>; }
