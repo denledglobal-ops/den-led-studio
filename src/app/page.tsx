@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Bell, ChevronRight, CircleHelp, Clock3, Film, LayoutDashboard, LogOut, Menu, MonitorPlay, Pencil, Play, Plus, Search, Send, Settings, Sparkles, Trash2, Upload, Users, WandSparkles, X, Zap } from "lucide-react";
+import { Activity, Bell, ChevronRight, CircleHelp, Clock3, Film, LayoutDashboard, LogOut, Menu, MonitorPlay, Palette, Pencil, Play, Plus, Search, Send, Settings, Sparkles, Timer, Trash2, Upload, Users, WandSparkles, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -23,11 +23,23 @@ const demoScreens = [
   { id: "demo-3", name: "Vitrin Ekranı", location: "Ataşehir / İstanbul", status: "Beklemede", resolution: "1920 × 1080", width: 1920, height: 1080 },
 ];
 
+const videoStyles = ["Premium", "Enerjik", "Minimal", "Sinematik"] as const;
+const resolutionOptions = [
+  { value: "1920x640", label: "1920 × 640", detail: "Yatay LED" },
+  { value: "1280x384", label: "1280 × 384", detail: "Şerit ekran" },
+  { value: "1920x1080", label: "1920 × 1080", detail: "Full HD" },
+  { value: "1080x1920", label: "1080 × 1920", detail: "Dikey ekran" },
+];
+
 type ScreenItem = (typeof demoScreens)[number];
 
 export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [resolution, setResolution] = useState("1920x640");
+  const [duration, setDuration] = useState(15);
+  const [videoStyle, setVideoStyle] = useState<(typeof videoStyles)[number]>("Premium");
+  const [weeklyProduction, setWeeklyProduction] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [started, setStarted] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [projects, setProjects] = useState(demoProjects);
@@ -50,17 +62,28 @@ export default function Home() {
       if (!active || !organization) return;
       setOrganizationId(organization.id);
       const [projectResult, screenResult] = await Promise.all([
-        supabase.from("projects").select("id,title,width,height,status,created_at").eq("organization_id", organization.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("projects").select("id,title,width,height,status,created_at").eq("organization_id", organization.id).order("created_at", { ascending: false }).limit(100),
         supabase.from("screens").select("id,name,location,width,height,last_seen_at").eq("organization_id", organization.id).order("created_at", { ascending: false }).limit(5),
       ]);
       if (!active) return;
-      setProjects((projectResult.data ?? []).map((item) => ({
+      const projectRows = projectResult.data ?? [];
+      setProjects(projectRows.map((item) => ({
         title: item.title,
         size: `${item.width} × ${item.height}`,
         status: item.status === "ready" ? "Hazır" : item.status === "failed" ? "Hata" : item.status === "draft" ? "Taslak" : "Üretiliyor",
         color: item.status === "ready" ? "from-cyan-500 to-blue-900" : "from-fuchsia-600 to-violet-900",
         time: new Intl.RelativeTimeFormat("tr", { numeric: "auto" }).format(-Math.max(1, Math.round((Date.now() - new Date(item.created_at).getTime()) / 60000)), "minute"),
-      })));
+      })).slice(0, 5));
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() - 6);
+      const counts = Array.from({ length: 7 }, () => 0);
+      projectRows.forEach((item) => {
+        const created = new Date(item.created_at);
+        const index = Math.floor((created.getTime() - start.getTime()) / 86400000);
+        if (index >= 0 && index < 7) counts[index] += 1;
+      });
+      setWeeklyProduction(counts);
       setScreens((screenResult.data ?? []).map((item) => ({
         id: item.id,
         name: item.name,
@@ -80,17 +103,19 @@ export default function Home() {
     if (!prompt.trim() || !organizationId || saving) return;
     setSaving(true);
     const title = prompt.trim().split(/[.!?]/)[0].slice(0, 46) || "Yeni LED Projesi";
+    const [width, height] = resolution.split("x").map(Number);
     const { data, error } = await createClient().from("projects").insert({
       organization_id: organizationId,
       title,
       prompt: prompt.trim(),
-      width: 1920,
-      height: 640,
-      duration_seconds: 15,
+      width,
+      height,
+      duration_seconds: duration,
       status: "queued",
     }).select("title,width,height,status,created_at").single();
     if (!error && data) {
       setProjects((current) => [{ title: data.title, size: `${data.width} × ${data.height}`, status: "Üretiliyor", color: "from-fuchsia-600 to-violet-900", time: "şimdi" }, ...current].slice(0, 5));
+      setWeeklyProduction((current) => current.map((value, index) => index === 6 ? value + 1 : value));
       setStarted(true);
       setPrompt("");
     }
@@ -135,8 +160,22 @@ export default function Home() {
         <div className="mx-auto max-w-[1480px] p-4 sm:p-7 lg:p-8">
           <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="mb-1 text-sm text-cyan-400">18 Eylül 2026, Cuma</p><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Günaydın, DEN Ajans</h1><p className="mt-2 text-sm text-zinc-500">LED içeriklerinizi tek merkezden üretin ve yönetin.</p></div><button onClick={() => { promptRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); promptRef.current?.focus(); }} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-semibold text-[#051017] transition hover:bg-cyan-300"><Plus size={18} /> Yeni proje</button></div>
           <div className="grid gap-4 xl:grid-cols-[1.45fr_.55fr]">
-            <section className="relative overflow-hidden rounded-3xl border border-cyan-400/15 bg-[#0c1118] p-5 sm:p-7"><div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" /><div className="relative"><div className="mb-6 flex items-start justify-between"><div><span className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/[.07] px-3 py-1 text-[11px] font-semibold tracking-wide text-cyan-300"><Sparkles size={13} /> AI VIDEO STUDIO</span><h2 className="text-xl font-semibold sm:text-2xl">Fikrinizi LED videoya dönüştürün</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Kampanyanızı anlatın; yapay zekâ ekran ölçünüze uygun, akıcı ve dikkat çekici videoyu hazırlasın.</p></div><div className="hidden h-12 w-12 place-items-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300 sm:grid"><WandSparkles size={23} /></div></div><textarea ref={promptRef} value={prompt} onChange={(e) => { setPrompt(e.target.value); setStarted(false); }} placeholder="Örnek: Siyah fonda altın ışıklarla açılan, yeni sezon indirimi için lüks bir kuyumcu videosu oluştur..." className="min-h-28 w-full resize-none rounded-2xl border border-white/[.08] bg-black/25 p-4 text-sm leading-6 outline-none placeholder:text-zinc-600 focus:border-cyan-400/40" /><div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"><button className="flex h-11 items-center justify-between rounded-xl border border-white/[.08] bg-white/[.025] px-4 text-left text-sm text-zinc-300"><span><span className="mr-2 text-zinc-600">Ölçü</span> 1920 × 640 px</span><ChevronRight size={16} className="text-zinc-600" /></button><button className="flex h-11 items-center justify-between rounded-xl border border-white/[.08] bg-white/[.025] px-4 text-left text-sm text-zinc-300"><span><span className="mr-2 text-zinc-600">Süre</span> 15 saniye</span><ChevronRight size={16} className="text-zinc-600" /></button><button onClick={createProject} disabled={!prompt.trim() || !organizationId || saving} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-black transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-30"><Sparkles size={17} /> {saving ? "Kaydediliyor" : "Oluştur"}</button></div>{started && <div className="mt-4 flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/[.06] p-3 text-sm text-cyan-200"><Activity size={17} className="animate-pulse" /> Proje kaydedildi ve video üretim kuyruğuna alındı.</div>}</div></section>
-            <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><p className="text-sm font-medium">Sistem durumu</p><p className="mt-1 text-xs text-zinc-600">Bulut servisleri ve ekran ağı</p></div><span className="flex items-center gap-2 rounded-full bg-emerald-400/[.08] px-2.5 py-1 text-[11px] text-emerald-400"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Aktif</span></div><div className="grid grid-cols-2 gap-3">{[{ n: dataReady ? String(projects.length) : "—", t: "Toplam proje" }, { n: dataReady ? String(screens.length) : "—", t: "Bağlı ekran" }, { n: "18", t: "Kalan kredi" }, { n: "%99.9", t: "Çalışma süresi" }].map((x) => <div key={x.t} className="relative overflow-hidden rounded-2xl border border-white/[.055] bg-gradient-to-br from-white/[.035] to-transparent p-4"><div className="absolute -right-6 -top-6 h-14 w-14 rounded-full bg-cyan-400/[.06] blur-xl" /><p className="relative text-xl font-semibold">{x.n}</p><p className="relative mt-1 text-[11px] text-zinc-600">{x.t}</p></div>)}</div><div className="mt-4 rounded-2xl border border-white/[.05] bg-black/20 p-3"><div className="mb-3 flex items-center justify-between text-[10px]"><span className="text-zinc-500">7 günlük üretim</span><span className="text-emerald-400">+24%</span></div><div className="flex h-12 items-end gap-2">{[31,48,38,64,51,82,72].map((height, index) => <div key={index} className="flex-1 rounded-t-md bg-gradient-to-t from-blue-600/40 to-cyan-300/90" style={{ height: `${height}%` }} />)}</div></div><button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 py-3 text-xs text-zinc-500 transition hover:border-cyan-400/30 hover:text-cyan-300"><Upload size={15} /> Hazır videoyu yükle</button></section>
+            <section className="relative overflow-hidden rounded-3xl border border-cyan-400/15 bg-[#0c1118] p-5 sm:p-7">
+              <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
+              <div className="relative">
+                <div className="mb-6 flex items-start justify-between"><div><span className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/[.07] px-3 py-1 text-[11px] font-semibold tracking-wide text-cyan-300"><Sparkles size={13} /> AI VIDEO STUDIO</span><h2 className="text-xl font-semibold sm:text-2xl">Fikrinizi LED videoya dönüştürün</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Kampanyanızı anlatın; yapay zekâ ekran ölçünüze uygun, akıcı ve dikkat çekici videoyu hazırlasın.</p></div><div className="hidden h-12 w-12 place-items-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300 sm:grid"><WandSparkles size={23} /></div></div>
+                <textarea ref={promptRef} value={prompt} onChange={(e) => { setPrompt(e.target.value); setStarted(false); }} placeholder="Örnek: Siyah fonda altın ışıklarla açılan, yeni sezon indirimi için lüks bir kuyumcu videosu oluştur..." className="min-h-28 w-full resize-none rounded-2xl border border-white/[.08] bg-black/25 p-4 text-sm leading-6 outline-none placeholder:text-zinc-600 focus:border-cyan-400/40" />
+                <div className="mt-4 flex flex-wrap items-center gap-2"><span className="mr-1 flex items-center gap-1.5 text-[11px] text-zinc-600"><Palette size={13} /> Görsel stil</span>{videoStyles.map((style) => <button key={style} onClick={() => setVideoStyle(style)} className={`rounded-full border px-3 py-1.5 text-[11px] transition ${videoStyle === style ? "border-cyan-400/35 bg-cyan-400/10 text-cyan-300" : "border-white/[.07] text-zinc-500 hover:text-white"}`}>{style}</button>)}</div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                  <label className="relative flex h-12 items-center rounded-xl border border-white/[.08] bg-white/[.025] px-4"><MonitorPlay size={16} className="mr-3 text-cyan-400" /><span className="mr-2 text-xs text-zinc-600">Ölçü</span><select value={resolution} onChange={(event) => setResolution(event.target.value)} className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-200 outline-none">{resolutionOptions.map((option) => <option key={option.value} value={option.value} className="bg-[#0c1118]">{option.label} · {option.detail}</option>)}</select></label>
+                  <label className="relative flex h-12 items-center rounded-xl border border-white/[.08] bg-white/[.025] px-4"><Timer size={16} className="mr-3 text-violet-400" /><span className="mr-2 text-xs text-zinc-600">Süre</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-200 outline-none">{[10, 15, 20, 30].map((seconds) => <option key={seconds} value={seconds} className="bg-[#0c1118]">{seconds} saniye</option>)}</select></label>
+                  <button onClick={createProject} disabled={!prompt.trim() || !organizationId || saving} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-black transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-30"><Sparkles size={17} /> {saving ? "Kaydediliyor" : "Oluştur"}</button>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/[.05] pt-4 text-[11px] text-zinc-600"><span>Seçim: <strong className="font-medium text-zinc-300">{videoStyle} · {resolutionOptions.find((item) => item.value === resolution)?.label} · {duration} sn</strong></span><span>1 video kredisi</span></div>
+                {started ? <div className="mt-4 flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/[.06] p-3 text-sm text-cyan-200"><Activity size={17} className="animate-pulse" /> Proje kaydedildi ve video üretim kuyruğuna alındı.</div> : null}
+              </div>
+            </section>
+            <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><p className="text-sm font-medium">Sistem durumu</p><p className="mt-1 text-xs text-zinc-600">Bulut servisleri ve ekran ağı</p></div><span className="flex items-center gap-2 rounded-full bg-emerald-400/[.08] px-2.5 py-1 text-[11px] text-emerald-400"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Aktif</span></div><div className="grid grid-cols-2 gap-3">{[{ n: dataReady ? String(projects.length) : "—", t: "Son projeler" }, { n: dataReady ? String(screens.length) : "—", t: "Bağlı ekran" }, { n: "18", t: "Kalan kredi" }, { n: "%99.9", t: "Çalışma süresi" }].map((x) => <div key={x.t} className="relative overflow-hidden rounded-2xl border border-white/[.055] bg-gradient-to-br from-white/[.035] to-transparent p-4"><div className="absolute -right-6 -top-6 h-14 w-14 rounded-full bg-cyan-400/[.06] blur-xl" /><p className="relative text-xl font-semibold">{x.n}</p><p className="relative mt-1 text-[11px] text-zinc-600">{x.t}</p></div>)}</div><ProductionChart values={weeklyProduction} /><button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 py-3 text-xs text-zinc-500 transition hover:border-cyan-400/30 hover:text-cyan-300"><Upload size={15} /> Hazır videoyu yükle</button></section>
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
             <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">Son projeler</h2><p className="mt-1 text-xs text-zinc-600">Üretim ve yayın geçmişiniz</p></div><button className="text-xs text-cyan-400 hover:text-cyan-300">Tümünü gör</button></div>{projects.length ? <div className="space-y-3">{projects.map((p) => <div key={`${p.title}-${p.time}`} className="group flex items-center gap-4 rounded-2xl border border-white/[.055] bg-white/[.018] p-3 transition hover:border-cyan-400/20 hover:bg-white/[.03]"><div className={`relative grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br ${p.color}`}><div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_20%,rgba(255,255,255,.18)_48%,transparent_76%)] bg-[length:220%_100%]" /><Play size={17} fill="white" className="relative" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.title}</p><p className="mt-1 text-[11px] text-zinc-600">{p.size} · {p.time}</p></div><span className={`hidden rounded-full px-2.5 py-1 text-[10px] sm:inline ${p.status === "Hazır" ? "bg-cyan-400/10 text-cyan-300" : p.status === "Gönderildi" ? "bg-emerald-400/10 text-emerald-400" : "bg-amber-400/10 text-amber-300"}`}>{p.status}</span><button className="rounded-lg p-2 text-zinc-600 group-hover:text-white"><ChevronRight size={18} /></button></div>)}</div> : <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-white/[.08] bg-gradient-to-b from-white/[.02] to-transparent text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/[.08] text-cyan-400"><Film size={22} /></div><p className="mt-4 text-sm font-medium">İlk projenizi oluşturun</p><p className="mt-1 text-xs text-zinc-600">AI Studio ile birkaç dakikada başlayın.</p></div></div>}</section>
@@ -146,6 +185,34 @@ export default function Home() {
       </section>
       {screenModal ? <ScreenModal screen={screenModal === "new" ? null : screenModal} onClose={() => setScreenModal(null)} onSave={saveScreen} /> : null}
     </main>
+  );
+}
+
+function ProductionChart({ values }: { values: number[] }) {
+  const max = Math.max(...values, 1);
+  const points = values.map((value, index) => `${8 + index * 14},${42 - (value / max) * 32}`).join(" ");
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    return new Intl.DateTimeFormat("tr", { weekday: "short" }).format(date).replace(".", "");
+  });
+  const total = values.reduce((sum, value) => sum + value, 0);
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-white/[.05] bg-black/20 p-4">
+      <div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] uppercase tracking-[.14em] text-zinc-600">7 günlük üretim</p><p className="mt-1 text-lg font-semibold">{total} <span className="text-[11px] font-normal text-zinc-600">proje</span></p></div><span className="rounded-full bg-cyan-400/[.08] px-2.5 py-1 text-[10px] text-cyan-300">Canlı veri</span></div>
+      <div className="relative h-24">
+        <div className="absolute inset-x-0 top-2 border-t border-dashed border-white/[.06]" />
+        <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-white/[.05]" />
+        <svg viewBox="0 0 100 48" className="absolute inset-x-0 top-0 h-20 w-full overflow-visible" role="img" aria-label="Son yedi günlük proje üretim grafiği">
+          <defs><linearGradient id="production-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#22d3ee" stopOpacity="0.28" /><stop offset="100%" stopColor="#22d3ee" stopOpacity="0" /></linearGradient></defs>
+          <polygon points={`8,46 ${points} 92,46`} fill="url(#production-fill)" />
+          <polyline points={points} fill="none" stroke="#22d3ee" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          {values.map((value, index) => <circle key={index} cx={8 + index * 14} cy={42 - (value / max) * 32} r={index === 6 ? 2.4 : 1.5} fill={index === 6 ? "#fff" : "#22d3ee"}><title>{days[index]}: {value} proje</title></circle>)}
+        </svg>
+        <div className="absolute inset-x-0 bottom-0 flex justify-between text-[9px] text-zinc-600">{days.map((day, index) => <span key={`${day}-${index}`} className={index === 6 ? "text-cyan-300" : ""}>{day}</span>)}</div>
+      </div>
+    </div>
   );
 }
 
