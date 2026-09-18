@@ -1,0 +1,11 @@
+@import "tailwindcss";
+:root { --background: #07090d; --foreground: #f5f7fa; }
+@theme inline { --color-background: var(--background); --color-foreground: var(--foreground); --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif; --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace; }
+* { box-sizing: border-box; }
+html { background: var(--background); }
+body { margin: 0; background: var(--background); color: var(--foreground); }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #07090d; }
+::-webkit-scrollbar-thumb { background: #252a32; border-radius: 999px; }
