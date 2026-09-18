@@ -1,7 +1,9 @@
 "use client";
 
-import { Activity, Bell, ChevronRight, CircleHelp, Clock3, Film, LayoutDashboard, Menu, MonitorPlay, Play, Plus, Search, Send, Settings, Sparkles, Upload, Users, WandSparkles, X, Zap } from "lucide-react";
+import { Activity, Bell, ChevronRight, CircleHelp, Clock3, Film, LayoutDashboard, LogOut, Menu, MonitorPlay, Play, Plus, Search, Send, Settings, Sparkles, Upload, Users, WandSparkles, X, Zap } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { label: "Genel Bakış", icon: LayoutDashboard, active: true },
@@ -25,6 +27,12 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [started, setStarted] = useState(false);
+  const router = useRouter();
+  async function signOut() {
+    await createClient().auth.signOut();
+    router.replace("/giris");
+    router.refresh();
+  }
   return (
     <main className="min-h-screen bg-[#07090d] text-white selection:bg-cyan-400/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_65%_-10%,rgba(14,165,233,.13),transparent_38%)]" />
@@ -36,7 +44,7 @@ export default function Home() {
         <div className="absolute bottom-5 left-5 right-5 rounded-2xl border border-cyan-400/15 bg-gradient-to-br from-cyan-400/[.09] to-blue-600/[.04] p-4"><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-cyan-300"><Zap size={14} fill="currentColor" /> PRO PLAN</div><div className="mb-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full w-[72%] rounded-full bg-cyan-400" /></div><p className="text-[11px] text-zinc-400">18 / 25 video kredisi</p></div>
       </aside>
       <section className="relative lg:pl-[264px]">
-        <header className="sticky top-0 z-30 flex h-[72px] items-center gap-4 border-b border-white/[.06] bg-[#07090d]/80 px-4 backdrop-blur-xl sm:px-7"><button onClick={() => setMobileOpen(true)} className="rounded-xl border border-white/10 p-2.5 text-zinc-300 lg:hidden" aria-label="Menüyü aç"><Menu size={20} /></button><div className="relative hidden max-w-sm flex-1 sm:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={17} /><input placeholder="Proje veya ekran ara..." className="h-10 w-full rounded-xl border border-white/[.07] bg-white/[.025] pl-10 pr-4 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-400/40" /></div><div className="ml-auto flex items-center gap-3"><button className="relative rounded-xl border border-white/[.07] p-2.5 text-zinc-400 hover:text-white"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-cyan-400" /></button><div className="h-8 w-px bg-white/[.07]" /><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-xs font-bold text-[#061017]">DA</div><div className="hidden sm:block"><p className="text-sm font-medium">DEN Ajans</p><p className="text-[11px] text-zinc-500">Yönetici</p></div></div></div></header>
+        <header className="sticky top-0 z-30 flex h-[72px] items-center gap-4 border-b border-white/[.06] bg-[#07090d]/80 px-4 backdrop-blur-xl sm:px-7"><button onClick={() => setMobileOpen(true)} className="rounded-xl border border-white/10 p-2.5 text-zinc-300 lg:hidden" aria-label="Menüyü aç"><Menu size={20} /></button><div className="relative hidden max-w-sm flex-1 sm:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={17} /><input placeholder="Proje veya ekran ara..." className="h-10 w-full rounded-xl border border-white/[.07] bg-white/[.025] pl-10 pr-4 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-400/40" /></div><div className="ml-auto flex items-center gap-3"><button className="relative rounded-xl border border-white/[.07] p-2.5 text-zinc-400 hover:text-white"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-cyan-400" /></button><div className="h-8 w-px bg-white/[.07]" /><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-xs font-bold text-[#061017]">DA</div><div className="hidden sm:block"><p className="text-sm font-medium">DEN Ajans</p><p className="text-[11px] text-zinc-500">Yönetici</p></div><button onClick={signOut} className="rounded-xl border border-white/[.07] p-2.5 text-zinc-500 hover:border-red-400/30 hover:text-red-300" aria-label="Çıkış yap"><LogOut size={17} /></button></div></div></header>
         <div className="mx-auto max-w-[1480px] p-4 sm:p-7 lg:p-8">
           <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="mb-1 text-sm text-cyan-400">18 Eylül 2026, Cuma</p><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Günaydın, DEN Ajans</h1><p className="mt-2 text-sm text-zinc-500">LED içeriklerinizi tek merkezden üretin ve yönetin.</p></div><button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-semibold text-[#051017] transition hover:bg-cyan-300"><Plus size={18} /> Yeni proje</button></div>
           <div className="grid gap-4 xl:grid-cols-[1.45fr_.55fr]">
