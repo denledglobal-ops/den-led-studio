@@ -72,7 +72,13 @@ async function poll() {
     fs.writeFileSync(file, buffer);
 
     await report(deployment.id, "live");
-    await win.loadFile("player.html", { query: { video: file } });
+    const screenWidth = Number(data.screen?.width || project.width || 0);
+    const screenHeight = Number(data.screen?.height || project.height || 0);
+    const projectRatio = Number(project.width || 0) / Number(project.height || 1);
+    const screenRatio = screenWidth / Math.max(screenHeight, 1);
+    const ratioDelta = Math.abs(projectRatio - screenRatio) / Math.max(screenRatio, 0.001);
+    const fit = ratioDelta <= 0.02 ? "fill" : "contain";
+    await win.loadFile("player.html", { query: { video: file, fit } });
   } catch (error) {
     if (currentDeploymentId) {
       try { await report(currentDeploymentId, "failed"); } catch {}
