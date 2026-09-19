@@ -1,12 +1,13 @@
 "use client";
-import { useEffect,useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft,CreditCard,Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 type Sub={plan:string;status:string;billing_period:string|null;current_period_end:string|null};
 export default function BillingPage(){
- const router=useRouter(); const [sub,setSub]=useState<Sub|null>(null); const [credits,setCredits]=useState(0); const [error,setError]=useState<string|null>(null);
- useEffect(()=>{void (async()=>{const s=createClient();const {data:o}=await s.from("organizations").select("id").limit(1).maybeSingle();if(!o)return;const [{data:subscription,error:se},{data:balance,error:ce}]=await Promise.all([s.from("subscriptions").select("plan,status,billing_period,current_period_end").eq("organization_id",o.id).maybeSingle(),s.rpc("credit_balance",{target_org:o.id})]);if(se||ce)setError(se?.message||ce?.message||"Bilgiler alınamadı.");setSub(subscription as Sub|null);setCredits(Number(balance??0));})();},[]);
+ const router=useRouter(); const [sub,setSub]=useState<Sub|null>(null); const [credits,setCredits]=useState(0); const [error,setError]=useState<string|null>(null); const [loaded,setLoaded]=useState(false);
+ async function load(){const s=createClient();const {data:o}=await s.from("organizations").select("id").limit(1).maybeSingle();if(!o){setLoaded(true);return;}const a=await s.from("subscriptions").select("plan,status,billing_period,current_period_end").eq("organization_id",o.id).maybeSingle();const b=await s.rpc("credit_balance",{target_org:o.id});if(a.error||b.error)setError(a.error?.message||b.error?.message||"Bilgiler alınamadı.");setSub(a.data as Sub|null);setCredits(Number(b.data??0));setLoaded(true);}
+ if(!loaded&&typeof window!=="undefined"){void load();}
  const plans=[["Starter","Başlangıç paketi"],["Pro","Profesyonel LED işletmeleri"],["Enterprise","Çoklu müşteri ve ekran yönetimi"]];
  return <main className="min-h-screen bg-[#07090d] p-5 text-white sm:p-8"><div className="mx-auto max-w-5xl">
  <button onClick={()=>router.push("/")} className="mb-7 flex items-center gap-2 text-sm text-zinc-400 hover:text-white"><ArrowLeft size={16}/>Panele dön</button>
