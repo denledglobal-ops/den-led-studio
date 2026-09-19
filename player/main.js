@@ -58,6 +58,19 @@ async function poll() {
   if (!DEVICE_TOKEN) return;
   try {
     const data = await api("/api/device/next");
+    const command = data.command;
+    if (command?.command === "restart") {
+      app.relaunch();
+      app.exit(0);
+      return;
+    }
+    if (command?.command === "reload") {
+      await win.reload();
+    }
+    if (command?.command === "redownload") {
+      currentDeploymentId = null;
+      try { fs.unlinkSync(path.join(app.getPath("userData"), "current-video.mp4")); } catch {}
+    }
     const deployment = data.deployment;
     const project = deployment?.projects;
     if (!deployment || !project?.output_url) return;
