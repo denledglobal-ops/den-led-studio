@@ -92,6 +92,7 @@ class RunwayVideoProvider implements VideoProvider {
       method: "POST",
       body: JSON.stringify({
         model: "gen4.5",
+        promptImage: null,
         promptText: request.prompt,
         ratio,
         duration,
