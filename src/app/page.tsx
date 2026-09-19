@@ -80,6 +80,7 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
+    let refreshTimer: ReturnType<typeof setInterval> | null = null;
     async function loadDashboard() {
       const supabase = createClient();
       const { data: organization } = await supabase
@@ -128,8 +129,26 @@ export default function Home() {
       setCommandHistory(commandResult.data ?? []);
       setDataReady(true);
     }
+    async function refreshDevices() {
+      const supabase = createClient();
+      const { data: organization } = await supabase.from("organizations").select("id").limit(1).maybeSingle();
+      if (!active || !organization) return;
+      const [screenResult, commandResult] = await Promise.all([
+        supabase.from("screens").select("id,name,location,width,height,last_seen_at,device_status,player_version").eq("organization_id", organization.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("device_commands").select("id,screen_id,command,status,created_at").order("created_at", { ascending: false }).limit(8),
+      ]);
+      if (!active) return;
+      setScreens((screenResult.data ?? []).map((item) => ({
+        id: item.id, name: item.name, location: item.location || "Konum eklenmedi",
+        status: screenStatus(item.device_status, item.last_seen_at),
+        resolution: `${item.width} × ${item.height}`, width: item.width, height: item.height,
+        lastSeenAt: item.last_seen_at, playerVersion: item.player_version,
+      })));
+      setCommandHistory(commandResult.data ?? []);
+    }
     loadDashboard();
-    return () => { active = false; };
+    refreshTimer = setInterval(refreshDevices, 15000);
+    return () => { active = false; if (refreshTimer) clearInterval(refreshTimer); };
   }, []);
 
   async function uploadReadyVideo(file: File) {
