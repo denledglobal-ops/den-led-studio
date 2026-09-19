@@ -86,9 +86,9 @@ export async function POST(request: Request) {
         await supabase.from("projects").update({
           generation_error: message,
           processing_started_at: null,
-          status: "rendering",
+          status: "failed",
         }).eq("id", project.id);
-        throw cause;
+        return NextResponse.json({ status: "failed", error: message }, { status: 502 });
       }
     }
 
