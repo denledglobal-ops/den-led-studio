@@ -10,10 +10,22 @@ export async function POST(request: Request) {
   const body = await request.json();
   const projectId = String(body.projectId ?? "");
   const { data: project, error } = await supabase.from("projects")
-    .select("id,prompt,width,height,duration_seconds,status")
+    .select("id,prompt,width,height,duration_seconds,status,provider,provider_job_id,output_url,generation_error")
     .eq("id", projectId).single();
   if (error || !project) return NextResponse.json({ error: "Proje bulunamadı." }, { status: 404 });
   if (!project.prompt) return NextResponse.json({ error: "Proje promptu bulunmuyor." }, { status: 400 });
+
+  // Paid providers must never receive a duplicate generation request for the same project.
+  if (project.provider_job_id && ["queued", "rendering", "ready"].includes(project.status)) {
+    return NextResponse.json({
+      provider: project.provider,
+      jobId: project.provider_job_id,
+      status: project.status,
+      outputUrl: project.output_url,
+      error: project.generation_error,
+      reused: true,
+    });
+  }
 
   try {
     const result = await getVideoProvider().create({
