@@ -88,11 +88,10 @@ class RunwayVideoProvider implements VideoProvider {
     const ratio = landscape ? "1280:720" : "720:1280";
     const duration = Math.max(2, Math.min(10, request.durationSeconds));
 
-    const data = await this.request("/image_to_video", {
+    const data = await this.request("/text_to_video", {
       method: "POST",
       body: JSON.stringify({
         model: "gen4.5",
-        promptImage: null,
         promptText: request.prompt,
         ratio,
         duration,
