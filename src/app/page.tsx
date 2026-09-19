@@ -52,6 +52,8 @@ export default function Home() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -103,6 +105,45 @@ export default function Home() {
     loadDashboard();
     return () => { active = false; };
   }, []);
+
+  async function uploadReadyVideo(file: File) {
+    if (!organizationId || uploading) return;
+    if (!["video/mp4", "video/webm", "video/quicktime"].includes(file.type)) {
+      setGenerationError("Yalnızca MP4, WebM veya MOV video yükleyebilirsiniz.");
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      setGenerationError("Video dosyası en fazla 100 MB olabilir.");
+      return;
+    }
+    setUploading(true);
+    setGenerationError(null);
+    const supabase = createClient();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const path = `${organizationId}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage.from("project-videos").upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) {
+      setGenerationError(uploadError.message);
+      setUploading(false);
+      return;
+    }
+    const { data: publicData } = supabase.storage.from("project-videos").getPublicUrl(path);
+    const title = file.name.replace(/\.[^.]+$/, "").slice(0, 46) || "Yüklenen Video";
+    const { data, error } = await supabase.from("projects").insert({
+      organization_id: organizationId, title, prompt: "Hazır video yüklemesi",
+      width: 1920, height: 1080, duration_seconds: 0, status: "ready",
+      output_url: publicData.publicUrl, provider: "upload",
+    }).select("id,title,width,height,status,created_at").single();
+    if (error || !data) {
+      await supabase.storage.from("project-videos").remove([path]);
+      setGenerationError(error?.message || "Video projesi oluşturulamadı.");
+      setUploading(false);
+      return;
+    }
+    setProjects((current) => [{ id: data.id, title: data.title, size: "Hazır video", status: "Hazır", color: "from-cyan-500 to-blue-900", time: "şimdi" }, ...current].slice(0, 5));
+    setUploading(false);
+    router.push(`/projeler/${data.id}`);
+  }
 
   async function createProject() {
     if (!prompt.trim() || !organizationId || saving) return;
@@ -213,7 +254,7 @@ export default function Home() {
                 {generationError ? <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[.06] p-3 text-sm text-red-200">Video üretimi başlatılamadı: {generationError}</div> : null}
               </div>
             </section>
-            <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><p className="text-sm font-medium">Sistem durumu</p><p className="mt-1 text-xs text-zinc-600">Bulut servisleri ve ekran ağı</p></div><span className="flex items-center gap-2 rounded-full bg-emerald-400/[.08] px-2.5 py-1 text-[11px] text-emerald-400"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Aktif</span></div><div className="grid grid-cols-2 gap-3">{[{ n: dataReady ? String(projects.length) : "—", t: "Son projeler" }, { n: dataReady ? String(screens.length) : "—", t: "Bağlı ekran" }, { n: "18", t: "Kalan kredi" }, { n: "%99.9", t: "Çalışma süresi" }].map((x) => <div key={x.t} className="relative overflow-hidden rounded-2xl border border-white/[.055] bg-gradient-to-br from-white/[.035] to-transparent p-4"><div className="absolute -right-6 -top-6 h-14 w-14 rounded-full bg-cyan-400/[.06] blur-xl" /><p className="relative text-xl font-semibold">{x.n}</p><p className="relative mt-1 text-[11px] text-zinc-600">{x.t}</p></div>)}</div><ProductionChart values={weeklyProduction} /><button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 py-3 text-xs text-zinc-500 transition hover:border-cyan-400/30 hover:text-cyan-300"><Upload size={15} /> Hazır videoyu yükle</button></section>
+            <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><p className="text-sm font-medium">Sistem durumu</p><p className="mt-1 text-xs text-zinc-600">Bulut servisleri ve ekran ağı</p></div><span className="flex items-center gap-2 rounded-full bg-emerald-400/[.08] px-2.5 py-1 text-[11px] text-emerald-400"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Aktif</span></div><div className="grid grid-cols-2 gap-3">{[{ n: dataReady ? String(projects.length) : "—", t: "Son projeler" }, { n: dataReady ? String(screens.length) : "—", t: "Bağlı ekran" }, { n: "18", t: "Kalan kredi" }, { n: "%99.9", t: "Çalışma süresi" }].map((x) => <div key={x.t} className="relative overflow-hidden rounded-2xl border border-white/[.055] bg-gradient-to-br from-white/[.035] to-transparent p-4"><div className="absolute -right-6 -top-6 h-14 w-14 rounded-full bg-cyan-400/[.06] blur-xl" /><p className="relative text-xl font-semibold">{x.n}</p><p className="relative mt-1 text-[11px] text-zinc-600">{x.t}</p></div>)}</div><ProductionChart values={weeklyProduction} /><input ref={uploadRef} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadReadyVideo(file); e.currentTarget.value = ""; }} /><button disabled={uploading || !organizationId} onClick={() => uploadRef.current?.click()} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 py-3 text-xs text-zinc-500 transition hover:border-cyan-400/30 hover:text-cyan-300 disabled:opacity-40"><Upload size={15} /> {uploading ? "Video yükleniyor..." : "Hazır videoyu yükle"}</button></section>
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
             <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">Son projeler</h2><p className="mt-1 text-xs text-zinc-600">Üretim ve yayın geçmişiniz</p></div><button onClick={() => router.push("/projeler")} className="text-xs text-cyan-400 hover:text-cyan-300">Tümünü gör</button></div>{projects.length ? <div className="space-y-3">{projects.map((p) => <button type="button" onClick={() => !p.id.startsWith("demo-") && router.push(`/projeler/${p.id}`)} key={p.id} className="group flex w-full items-center gap-4 rounded-2xl border border-white/[.055] bg-white/[.018] p-3 text-left transition hover:border-cyan-400/20 hover:bg-white/[.03]"><div className={`relative grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br ${p.color}`}><div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_20%,rgba(255,255,255,.18)_48%,transparent_76%)] bg-[length:220%_100%]" /><Play size={17} fill="white" className="relative" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.title}</p><p className="mt-1 text-[11px] text-zinc-600">{p.size} · {p.time}</p></div><span className={`hidden rounded-full px-2.5 py-1 text-[10px] sm:inline ${p.status === "Hazır" ? "bg-cyan-400/10 text-cyan-300" : p.status === "Gönderildi" ? "bg-emerald-400/10 text-emerald-400" : "bg-amber-400/10 text-amber-300"}`}>{p.status}</span><span className="rounded-lg p-2 text-zinc-600 group-hover:text-white"><ChevronRight size={18} /></span></button>)}</div> : <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-white/[.08] bg-gradient-to-b from-white/[.02] to-transparent text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/[.08] text-cyan-400"><Film size={22} /></div><p className="mt-4 text-sm font-medium">İlk projenizi oluşturun</p><p className="mt-1 text-xs text-zinc-600">AI Studio ile birkaç dakikada başlayın.</p></div></div>}</section>
