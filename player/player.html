@@ -2,7 +2,10 @@
 <html><head><meta charset="utf-8"><style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
 video{width:100%;height:100%;object-fit:contain;background:#000}
-</style></head><body><video id="video" autoplay loop muted></video><script>
-const file = new URLSearchParams(location.search).get("video");
-if(file) document.getElementById("video").src = "file:///" + file.replace(/\\/g,"/");
+</style></head><body><video id="video" autoplay muted></video><script>
+const params = new URLSearchParams(location.search);
+const file = params.get("video");
+const video = document.getElementById("video");
+video.loop = params.get("once") !== "1";
+if(file) video.src = "file:///" + file.replace(/\\/g,"/");
 </script></body></html>
