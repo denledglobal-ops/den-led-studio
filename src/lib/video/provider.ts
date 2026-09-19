@@ -87,12 +87,24 @@ class RunwayVideoProvider implements VideoProvider {
     const landscape = request.width >= request.height;
     const ratio = landscape ? "1280:720" : "720:1280";
     const duration = Math.max(2, Math.min(10, request.durationSeconds));
+    const targetRatio = request.width / Math.max(request.height, 1);
+    const sourceRatio = landscape ? 16 / 9 : 9 / 16;
+    const isUltraWide = targetRatio >= 2.2;
+    const isUltraTall = targetRatio <= 0.45;
+    const framingHint = isUltraWide
+      ? " Compose for an ultra-wide LED billboard. Keep all important subjects, logos and text inside the central horizontal safe area; use edge-to-edge atmospheric background motion and avoid critical content near the top or bottom."
+      : isUltraTall
+        ? " Compose for a very tall portrait LED display. Keep all important subjects, logos and text inside the central vertical safe area; extend background motion above and below and avoid critical content near the left or right edges."
+        : Math.abs(targetRatio - sourceRatio) / sourceRatio > 0.08
+          ? " Compose with generous safe margins so the scene can be adapted to the target LED aspect ratio without cutting important subjects, logos or text."
+          : "";
+    const promptText = `${request.prompt}${framingHint}`;
 
     const data = await this.request("/text_to_video", {
       method: "POST",
       body: JSON.stringify({
         model: "gen4.5",
-        promptText: request.prompt,
+        promptText,
         ratio,
         duration,
       }),
