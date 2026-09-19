@@ -133,12 +133,27 @@ async function poll() {
 }
 
 app.whenReady().then(() => {
+  app.setLoginItemSettings({
+    openAtLogin: true,
+    openAsHidden: false,
+    path: process.execPath,
+  });
   loadConfig();
   createWindow();
   poll();
   pollTimer = setInterval(poll, 10000);
   const { ipcMain } = require("electron");
   ipcMain.handle("pair-device", async (_event, code) => { try { await pair(code); return { ok: true }; } catch (error) { return { ok: false, error: error.message }; } });
+});
+
+process.on("uncaughtException", (error) => {
+  try { fs.appendFileSync(path.join(app.getPath("userData"), "player-errors.log"), `[${new Date().toISOString()}] ${error.stack || error.message}\n`); } catch {}
+  app.relaunch();
+  app.exit(1);
+});
+
+process.on("unhandledRejection", (error) => {
+  try { fs.appendFileSync(path.join(app.getPath("userData"), "player-errors.log"), `[${new Date().toISOString()}] ${error?.stack || error}\n`); } catch {}
 });
 
 app.on("before-quit", () => { if (pollTimer) clearInterval(pollTimer); });
