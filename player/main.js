@@ -11,9 +11,38 @@ let currentDeploymentId = null;
 let polling = false;
 let pollTimer = null;
 let currentVideoFile = null;
+let currentPlaylistId = null;
+let playlistIndex = 0;
 
 function cachedVideoPath() {
   return path.join(app.getPath("userData"), "current-video.mp4");
+}
+function playlistVideoPath(itemId) {
+  return path.join(app.getPath("userData"), `playlist-${itemId}.mp4`);
+}
+async function downloadFile(url, file) {
+  if (fs.existsSync(file)) return file;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Video indirilemedi.");
+  const temp = `${file}.download`;
+  fs.writeFileSync(temp, Buffer.from(await response.arrayBuffer()));
+  fs.renameSync(temp, file);
+  return file;
+}
+async function playScheduledPlaylist(playlist, screen) {
+  if (!playlist?.items?.length || !win) return false;
+  if (currentPlaylistId !== playlist.id) { currentPlaylistId = playlist.id; playlistIndex = 0; }
+  const item = playlist.items[playlistIndex % playlist.items.length];
+  const project = item.project;
+  if (!project?.output_url) return false;
+  const file = await downloadFile(project.output_url, playlistVideoPath(item.id));
+  currentVideoFile = file;
+  const screenRatio = Number(screen?.width || 0) / Math.max(Number(screen?.height || 1), 1);
+  const projectRatio = Number(project.width || 0) / Math.max(Number(project.height || 1), 1);
+  const fit = Math.abs(projectRatio - screenRatio) / Math.max(screenRatio, 0.001) <= 0.02 ? "fill" : "contain";
+  await win.loadFile("player.html", { query: { video: file, fit, once: "1" } });
+  playlistIndex = (playlistIndex + 1) % playlist.items.length;
+  return true;
 }
 
 async function showCachedVideo() {
@@ -98,6 +127,11 @@ async function poll() {
       try { fs.unlinkSync(cachedVideoPath()); currentVideoFile = null; } catch {}
       await api("/api/device/command-status", { commandId: command.id, status: "completed" });
     }
+    if (data.playlist?.items?.length) {
+      await playScheduledPlaylist(data.playlist, data.screen);
+      return;
+    }
+    currentPlaylistId = null;
     const deployment = data.deployment;
     const project = deployment?.projects;
     if (!deployment || !project?.output_url) return;
