@@ -260,8 +260,23 @@ export default function Home() {
 
   async function sendDeviceCommand(screen: ScreenItem, command: "reload" | "redownload" | "restart") {
     if (screen.id.startsWith("demo-") || commandBusy) return;
+    const existing = commandHistory.find((item) => item.screen_id === screen.id && item.command === command && ["queued", "received"].includes(item.status));
+    if (existing) {
+      setGenerationError("Bu komut cihaz tarafından henüz tamamlanmadı.");
+      return;
+    }
     setCommandBusy(`${screen.id}:${command}`);
-    const { data, error } = await createClient().from("device_commands").insert({ screen_id: screen.id, command }).select("id,screen_id,command,status,created_at").single();
+    setGenerationError(null);
+    const supabase = createClient();
+    const { data: pending } = await supabase.from("device_commands")
+      .select("id").eq("screen_id", screen.id).eq("command", command)
+      .in("status", ["queued", "received"]).limit(1).maybeSingle();
+    if (pending) {
+      setCommandBusy(null);
+      setGenerationError("Bu komut cihaz tarafından henüz tamamlanmadı.");
+      return;
+    }
+    const { data, error } = await supabase.from("device_commands").insert({ screen_id: screen.id, command }).select("id,screen_id,command,status,created_at").single();
     if (data) setCommandHistory((current) => [data, ...current].slice(0, 8));
     setCommandBusy(null);
     if (error) setGenerationError(`Cihaz komutu gönderilemedi: ${error.message}`);
