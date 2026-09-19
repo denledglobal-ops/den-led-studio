@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 const allowed = new Set(["downloading", "live", "failed"]);
 
@@ -19,7 +20,8 @@ export async function POST(request: Request) {
     if (!deploymentId || !allowed.has(status)) return NextResponse.json({ error: "Geçersiz yayın durumu." }, { status: 400 });
 
     const supabase = adminClient();
-    const { data: screen } = await supabase.from("screens").select("id").eq("device_token", token).single();
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const { data: screen } = await supabase.from("screens").select("id").eq("device_token_hash", tokenHash).single();
     if (!screen) return NextResponse.json({ error: "Cihaz tanınmadı." }, { status: 401 });
 
     const { data: deployment } = await supabase.from("deployments").select("id").eq("id", deploymentId).eq("screen_id", screen.id).single();

@@ -26,7 +26,8 @@ export async function POST(request: Request) {
 
     const deviceToken = crypto.randomBytes(32).toString("hex");
     const { error } = await supabase.from("screens").update({
-      device_token: deviceToken,
+      device_token: null,
+      device_token_hash: crypto.createHash("sha256").update(deviceToken).digest("hex"),
       pairing_code: null,
       pairing_expires_at: null,
       device_status: "online",

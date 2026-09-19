@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,7 +14,8 @@ export async function POST(request: Request) {
   if (!token) return NextResponse.json({ error: "Cihaz anahtarı gerekli." }, { status: 401 });
   try {
     const supabase = adminClient();
-    const { data: screen } = await supabase.from("screens").select("id,name").eq("device_token", token).single();
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const { data: screen } = await supabase.from("screens").select("id,name").eq("device_token_hash", tokenHash).single();
     if (!screen) return NextResponse.json({ error: "Cihaz tanınmadı." }, { status: 401 });
 
     await supabase.from("screens").update({ last_seen_at: new Date().toISOString(), device_status: "online" }).eq("id", screen.id);
