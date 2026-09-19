@@ -10,6 +10,19 @@ let win;
 let currentDeploymentId = null;
 let polling = false;
 let pollTimer = null;
+let currentVideoFile = null;
+
+function cachedVideoPath() {
+  return path.join(app.getPath("userData"), "current-video.mp4");
+}
+
+async function showCachedVideo() {
+  const file = cachedVideoPath();
+  if (!win || !fs.existsSync(file)) return false;
+  currentVideoFile = file;
+  await win.loadFile("player.html", { query: { video: file, fit: "contain" } });
+  return true;
+}
 
 function loadConfig() {
   configPath = path.join(app.getPath("userData"), "device.json");
@@ -29,7 +42,11 @@ function createWindow() {
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, preload: path.join(__dirname, "preload.js") }
   });
-  win.loadFile(DEVICE_TOKEN ? "player.html" : "pair.html");
+  if (DEVICE_TOKEN) {
+    showCachedVideo().then((shown) => { if (!shown && win) win.loadFile("player.html"); });
+  } else {
+    win.loadFile("pair.html");
+  }
   win.on("closed", () => { win = null; });
 }
 
@@ -78,7 +95,7 @@ async function poll() {
     }
     if (command?.command === "redownload") {
       currentDeploymentId = null;
-      try { fs.unlinkSync(path.join(app.getPath("userData"), "current-video.mp4")); } catch {}
+      try { fs.unlinkSync(cachedVideoPath()); currentVideoFile = null; } catch {}
       await api("/api/device/command-status", { commandId: command.id, status: "completed" });
     }
     const deployment = data.deployment;
@@ -91,8 +108,11 @@ async function poll() {
     const response = await fetch(project.output_url);
     if (!response.ok) throw new Error("Video indirilemedi.");
     const buffer = Buffer.from(await response.arrayBuffer());
-    const file = path.join(app.getPath("userData"), "current-video.mp4");
-    fs.writeFileSync(file, buffer);
+    const file = cachedVideoPath();
+    const tempFile = `${file}.download`;
+    fs.writeFileSync(tempFile, buffer);
+    fs.renameSync(tempFile, file);
+    currentVideoFile = file;
 
     await report(deployment.id, "live");
     const screenWidth = Number(data.screen?.width || project.width || 0);
@@ -103,9 +123,9 @@ async function poll() {
     const fit = ratioDelta <= 0.02 ? "fill" : "contain";
     await win.loadFile("player.html", { query: { video: file, fit } });
   } catch (error) {
-    if (currentDeploymentId) {
-      try { await report(currentDeploymentId, "failed"); } catch {}
-      currentDeploymentId = null;
+    // Network/API failures must not interrupt the last successfully downloaded ad.
+    if (!currentVideoFile || !fs.existsSync(currentVideoFile)) {
+      try { await showCachedVideo(); } catch {}
     }
   } finally {
     polling = false;
