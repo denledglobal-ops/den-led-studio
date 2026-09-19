@@ -3,6 +3,11 @@ name: Build DEN LED Player
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
+    paths:
+      - "player/**"
+      - ".github/workflows/build-player.yml"
     tags:
       - "player-v*"
 
