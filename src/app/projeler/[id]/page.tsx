@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type Project = {
   id: string; title: string; prompt: string | null; width: number; height: number;
-  duration_seconds: number; status: string; output_url: string | null; created_at: string;
+  duration_seconds: number; status: string; output_url: string | null; generation_error: string | null; created_at: string;
 };
 
 export default function ProjectDetail() {
@@ -19,11 +19,34 @@ export default function ProjectDetail() {
   useEffect(() => {
     let active = true;
     createClient().from("projects")
-      .select("id,title,prompt,width,height,duration_seconds,status,output_url,created_at")
+      .select("id,title,prompt,width,height,duration_seconds,status,output_url,generation_error,created_at")
       .eq("id", id).single()
       .then(({ data }) => { if (active) { setProject(data); setLoading(false); } });
     return () => { active = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (!project || !["queued", "rendering"].includes(project.status)) return;
+    const timer = window.setInterval(async () => {
+      const response = await fetch("/api/video/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setProject((current) => current ? { ...current, status: "failed", generation_error: result?.error || "Video durumu alınamadı." } : current);
+        return;
+      }
+      setProject((current) => current ? {
+        ...current,
+        status: result.status,
+        output_url: result.outputUrl ?? current.output_url,
+        generation_error: result.error ?? null,
+      } : current);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [project?.id, project?.status]);
 
   const statusLabel = project?.status === "ready" ? "Hazır" : project?.status === "failed" ? "Hata" : project?.status === "draft" ? "Taslak" : "Üretiliyor";
 
@@ -40,7 +63,7 @@ export default function ProjectDetail() {
         <div className="grid gap-4 lg:grid-cols-[1.4fr_.6fr]">
           <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#0c0f14] p-4 sm:p-6">
             <div className="grid aspect-video place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-gradient-to-br from-cyan-950/40 to-blue-950/30">
-              {project.output_url ? <video src={project.output_url} controls className="h-full w-full object-contain"/> : <div className="text-center"><Film className="mx-auto text-cyan-400" size={42}/><p className="mt-4 text-sm">Video üretim sırasında</p><p className="mt-1 text-xs text-zinc-600">Tamamlandığında önizleme burada görünecek.</p></div>}
+              {project.output_url ? <video src={project.output_url} controls className="h-full w-full object-contain"/> : project.status === "failed" ? <div className="max-w-lg px-5 text-center"><Film className="mx-auto text-red-400" size={42}/><p className="mt-4 text-sm text-red-300">Video üretilemedi</p><p className="mt-2 text-xs leading-5 text-zinc-500">{project.generation_error || "Üretim sırasında bir hata oluştu."}</p></div> : <div className="text-center"><Film className="mx-auto text-cyan-400" size={42}/><p className="mt-4 text-sm">Video üretim sırasında</p><p className="mt-1 text-xs text-zinc-600">Durum otomatik kontrol ediliyor. Tamamlandığında önizleme burada görünecek.</p></div>}
             </div>
           </section>
           <aside className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6">
