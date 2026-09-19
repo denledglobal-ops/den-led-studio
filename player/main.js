@@ -55,12 +55,13 @@ async function pair(code) {
 }
 
 async function poll() {
-  if (!DEVICE_TOKEN || currentDeploymentId) return;
+  if (!DEVICE_TOKEN) return;
   try {
     const data = await api("/api/device/next");
     const deployment = data.deployment;
     const project = deployment?.projects;
     if (!deployment || !project?.output_url) return;
+    if (deployment.id === currentDeploymentId) return;
     currentDeploymentId = deployment.id;
     await report(deployment.id, "downloading");
 
