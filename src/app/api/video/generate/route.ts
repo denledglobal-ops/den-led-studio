@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const projectId = String(body.projectId ?? "");
   const { data: project, error } = await supabase.from("projects")
-    .select("id,prompt,width,height,duration_seconds,status,provider,provider_job_id,output_url,generation_error")
+    .select("id,organization_id,prompt,width,height,duration_seconds,status,provider,provider_job_id,output_url,generation_error")
     .eq("id", projectId).single();
   if (error || !project) return NextResponse.json({ error: "Proje bulunamadı." }, { status: 404 });
   if (!project.prompt) return NextResponse.json({ error: "Proje promptu bulunmuyor." }, { status: 400 });
@@ -27,6 +27,14 @@ export async function POST(request: Request) {
     });
   }
 
+  const { error: creditError } = await supabase.rpc("spend_video_credit", {
+    target_org: project.organization_id, target_project: project.id, cost: 1,
+  });
+  if (creditError) {
+    const insufficient = creditError.message.includes("insufficient_credits");
+    return NextResponse.json({ error: insufficient ? "Video krediniz kalmadı." : "Kredi doğrulanamadı." }, { status: insufficient ? 402 : 500 });
+  }
+
   try {
     const result = await getVideoProvider().create({
       projectId: project.id, prompt: project.prompt, width: project.width,
@@ -39,6 +47,7 @@ export async function POST(request: Request) {
     }).eq("id", project.id);
     return NextResponse.json(result);
   } catch (cause) {
+    await supabase.from("credit_ledger").insert({ organization_id: project.organization_id, amount: 1, reason: "generation_refund", project_id: project.id });
     const message = cause instanceof Error ? cause.message : "Video üretimi başlatılamadı.";
     await supabase.from("projects").update({ status: "failed", generation_error: message }).eq("id", project.id);
     return NextResponse.json({ error: message }, { status: 500 });
