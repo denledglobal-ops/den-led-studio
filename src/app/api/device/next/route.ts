@@ -20,12 +20,20 @@ export async function POST(request: Request) {
 
     await supabase.from("screens").update({ last_seen_at: new Date().toISOString(), device_status: "online" }).eq("id", screen.id);
 
+    const { data: command } = await supabase.from("device_commands")
+      .select("id,command").eq("screen_id", screen.id).eq("status", "queued")
+      .order("created_at", { ascending: true }).limit(1).maybeSingle();
+
+    if (command) {
+      await supabase.from("device_commands").update({ status: "received", received_at: new Date().toISOString() }).eq("id", command.id);
+    }
+
     const { data: deployment } = await supabase.from("deployments")
       .select("id,status,projects(id,title,output_url,width,height)")
       .eq("screen_id", screen.id).eq("status", "queued")
       .order("created_at", { ascending: true }).limit(1).maybeSingle();
 
-    return NextResponse.json({ screen: { id: screen.id, name: screen.name, width: screen.width, height: screen.height }, deployment: deployment ?? null });
+    return NextResponse.json({ screen: { id: screen.id, name: screen.name, width: screen.width, height: screen.height }, command: command ?? null, deployment: deployment ?? null });
   } catch (cause) {
     return NextResponse.json({ error: cause instanceof Error ? cause.message : "Cihaz görevi alınamadı." }, { status: 500 });
   }
