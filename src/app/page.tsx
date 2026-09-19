@@ -46,6 +46,7 @@ export default function Home() {
   const [screens, setScreens] = useState(demoScreens);
   const [dataReady, setDataReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [screenModal, setScreenModal] = useState<ScreenItem | "new" | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
@@ -103,6 +104,7 @@ export default function Home() {
   async function createProject() {
     if (!prompt.trim() || !organizationId || saving) return;
     setSaving(true);
+    setGenerationError(null);
     const title = prompt.trim().split(/[.!?]/)[0].slice(0, 46) || "Yeni LED Projesi";
     const [width, height] = resolution.split("x").map(Number);
     const { data, error } = await createClient().from("projects").insert({
@@ -117,8 +119,25 @@ export default function Home() {
     if (!error && data) {
       setProjects((current) => [{ id: data.id, title: data.title, size: `${data.width} × ${data.height}`, status: "Üretiliyor", color: "from-fuchsia-600 to-violet-900", time: "şimdi" }, ...current].slice(0, 5));
       setWeeklyProduction((current) => current.map((value, index) => index === 6 ? value + 1 : value));
-      setStarted(true);
-      setPrompt("");
+      try {
+        const response = await fetch("/api/video/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: data.id }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result?.error || "Video üretimi başlatılamadı.");
+        setStarted(true);
+        setPrompt("");
+        router.push(`/projeler/${data.id}`);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : "Video üretimi başlatılamadı.";
+        setGenerationError(message);
+        await createClient().from("projects").update({ status: "failed", generation_error: message }).eq("id", data.id);
+        setProjects((current) => current.map((project) => project.id === data.id ? { ...project, status: "Hata" } : project));
+      }
+    } else if (error) {
+      setGenerationError(error.message);
     }
     setSaving(false);
   }
@@ -174,6 +193,7 @@ export default function Home() {
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/[.05] pt-4 text-[11px] text-zinc-600"><span>Seçim: <strong className="font-medium text-zinc-300">{videoStyle} · {resolutionOptions.find((item) => item.value === resolution)?.label} · {duration} sn</strong></span><span>1 video kredisi</span></div>
                 {started ? <div className="mt-4 flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/[.06] p-3 text-sm text-cyan-200"><Activity size={17} className="animate-pulse" /> Proje kaydedildi ve video üretim kuyruğuna alındı.</div> : null}
+                {generationError ? <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[.06] p-3 text-sm text-red-200">Video üretimi başlatılamadı: {generationError}</div> : null}
               </div>
             </section>
             <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><p className="text-sm font-medium">Sistem durumu</p><p className="mt-1 text-xs text-zinc-600">Bulut servisleri ve ekran ağı</p></div><span className="flex items-center gap-2 rounded-full bg-emerald-400/[.08] px-2.5 py-1 text-[11px] text-emerald-400"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Aktif</span></div><div className="grid grid-cols-2 gap-3">{[{ n: dataReady ? String(projects.length) : "—", t: "Son projeler" }, { n: dataReady ? String(screens.length) : "—", t: "Bağlı ekran" }, { n: "18", t: "Kalan kredi" }, { n: "%99.9", t: "Çalışma süresi" }].map((x) => <div key={x.t} className="relative overflow-hidden rounded-2xl border border-white/[.055] bg-gradient-to-br from-white/[.035] to-transparent p-4"><div className="absolute -right-6 -top-6 h-14 w-14 rounded-full bg-cyan-400/[.06] blur-xl" /><p className="relative text-xl font-semibold">{x.n}</p><p className="relative mt-1 text-[11px] text-zinc-600">{x.t}</p></div>)}</div><ProductionChart values={weeklyProduction} /><button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 py-3 text-xs text-zinc-500 transition hover:border-cyan-400/30 hover:text-cyan-300"><Upload size={15} /> Hazır videoyu yükle</button></section>
