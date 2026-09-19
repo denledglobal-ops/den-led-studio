@@ -1,0 +1,8 @@
+{
+  "name": "den-led-player",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": { "start": "electron ." },
+  "dependencies": { "electron": "^38.1.2" }
+}
