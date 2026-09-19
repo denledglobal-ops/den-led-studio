@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+type Screen = { id: string; name: string; location: string | null; width: number; height: number; };
+
 type Project = {
   id: string; title: string; prompt: string | null; width: number; height: number;
   duration_seconds: number; status: string; output_url: string | null; generation_error: string | null; created_at: string;
@@ -15,6 +17,10 @@ export default function ProjectDetail() {
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [screens, setScreens] = useState<Screen[]>([]);
+  const [selectedScreen, setSelectedScreen] = useState("");
+  const [sending, setSending] = useState(false);
+  const [deploymentMessage, setDeploymentMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -48,6 +54,28 @@ export default function ProjectDetail() {
     return () => window.clearInterval(timer);
   }, [project?.id, project?.status]);
 
+  useEffect(() => {
+    createClient().from("screens").select("id,name,location,width,height").order("created_at", { ascending: false })
+      .then(({ data }) => {
+        const items = (data ?? []) as Screen[];
+        setScreens(items);
+        if (items.length) setSelectedScreen((current) => current || items[0].id);
+      });
+  }, []);
+
+  async function sendToLed() {
+    if (!project || project.status !== "ready" || !selectedScreen || sending) return;
+    setSending(true);
+    setDeploymentMessage(null);
+    const { error } = await createClient().from("deployments").insert({
+      project_id: project.id,
+      screen_id: selectedScreen,
+      status: "queued",
+    });
+    setDeploymentMessage(error ? `Gönderim oluşturulamadı: ${error.message}` : "Yayın görevi oluşturuldu. LED cihazı sıradaki videoyu alabilir.");
+    setSending(false);
+  }
+
   const statusLabel = project?.status === "ready" ? "Hazır" : project?.status === "failed" ? "Hata" : project?.status === "draft" ? "Taslak" : "Üretiliyor";
 
   return <main className="min-h-screen bg-[#07090d] p-4 text-white sm:p-8">
@@ -69,7 +97,14 @@ export default function ProjectDetail() {
           <aside className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6">
             <h2 className="font-medium">Proje bilgileri</h2>
             <div className="mt-5 space-y-4 text-sm"><div><p className="text-xs text-zinc-600">Prompt</p><p className="mt-1 leading-6 text-zinc-300">{project.prompt || "Prompt bulunmuyor."}</p></div><div><p className="text-xs text-zinc-600">Çözünürlük</p><p className="mt-1">{project.width} × {project.height}</p></div><div><p className="text-xs text-zinc-600">Süre</p><p className="mt-1">{project.duration_seconds} saniye</p></div></div>
-            <button disabled={project.status !== "ready"} className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 font-semibold text-[#051017] disabled:cursor-not-allowed disabled:opacity-30"><Send size={17}/> LED ekrana gönder</button>
+            <div className="mt-7">
+              <label className="mb-2 block text-xs text-zinc-500">Hedef LED ekran</label>
+              <select value={selectedScreen} onChange={(event) => setSelectedScreen(event.target.value)} disabled={!screens.length} className="h-12 w-full rounded-xl border border-white/[.08] bg-[#090c10] px-3 text-sm text-zinc-200 outline-none disabled:opacity-40">
+                {screens.length ? screens.map((screen) => <option key={screen.id} value={screen.id}>{screen.name}{screen.location ? ` · ${screen.location}` : ""} · {screen.width}×{screen.height}</option>) : <option value="">Bağlı LED ekran yok</option>}
+              </select>
+            </div>
+            <button onClick={sendToLed} disabled={project.status !== "ready" || !selectedScreen || sending} className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 font-semibold text-[#051017] disabled:cursor-not-allowed disabled:opacity-30"><Send size={17}/> {sending ? "Gönderiliyor..." : "LED ekrana gönder"}</button>
+            {deploymentMessage ? <div className="mt-3 rounded-xl border border-cyan-400/15 bg-cyan-400/[.05] p-3 text-xs leading-5 text-cyan-200">{deploymentMessage}</div> : null}
             <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/[.025] p-3 text-[11px] leading-5 text-zinc-600"><MonitorPlay size={15} className="mt-0.5 shrink-0"/> Video hazır olduğunda bağlı LED ekranlardan birini seçerek uzaktan yayınlayabileceksiniz.</div>
           </aside>
         </div>
