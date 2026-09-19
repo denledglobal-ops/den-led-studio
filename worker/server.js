@@ -27,8 +27,21 @@ function auth(req, res, next) {
 }
 
 function even(value) {
-  const n = Math.max(64, Math.min(8192, Number(value) || 0));
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 64 || parsed > 8192) return null;
+  const n = Math.floor(parsed);
   return n % 2 === 0 ? n : n - 1;
+}
+
+function safeInputUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return null;
+    if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) return null;
+    return url;
+  } catch {
+    return null;
+  }
 }
 
 function ffmpeg(input, output, width, height, fit) {
@@ -49,12 +62,14 @@ app.get("/health", (_req,res) => res.json({ ok:true, service:"den-led-video-work
 app.post("/transcode", auth, async (req,res) => {
   const { inputUrl, width: rawWidth, height: rawHeight, organizationId, projectId, fit = "contain" } = req.body ?? {};
   if (!inputUrl || !organizationId || !projectId) return res.status(400).json({ error:"inputUrl, organizationId and projectId are required" });
+  const sourceUrl = safeInputUrl(inputUrl);
+  if (!sourceUrl) return res.status(400).json({ error:"A valid HTTPS inputUrl is required" });
   const width=even(rawWidth), height=even(rawHeight);
-  if (!width || !height) return res.status(400).json({ error:"Invalid dimensions" });
+  if (!width || !height) return res.status(400).json({ error:"Invalid dimensions (64-8192 required)" });
   const dir=await mkdtemp(join(tmpdir(),"den-led-"));
   const input=join(dir,"input.mp4"), output=join(dir,"output.mp4");
   try {
-    const source=await fetch(inputUrl);
+    const source=await fetch(sourceUrl, { redirect: "error" });
     if (!source.ok || !source.body) throw new Error(`Input download failed: ${source.status}`);
     await pipeline(Readable.fromWeb(source.body), createWriteStream(input));
     await ffmpeg(input,output,width,height,fit === "cover" ? "cover" : "contain");
