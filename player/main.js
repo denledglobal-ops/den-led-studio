@@ -3,10 +3,21 @@ const fs = require("fs");
 const path = require("path");
 
 const API_BASE = process.env.DEN_LED_API || "https://den-led-studio.vercel.app";
-const DEVICE_TOKEN = process.env.DEN_LED_DEVICE_TOKEN;
+let DEVICE_TOKEN = process.env.DEN_LED_DEVICE_TOKEN || null;
+let configPath;
 const VERSION = "0.1.0";
 let win;
 let currentDeploymentId = null;
+
+function loadConfig() {
+  configPath = path.join(app.getPath("userData"), "device.json");
+  try { DEVICE_TOKEN = DEVICE_TOKEN || JSON.parse(fs.readFileSync(configPath, "utf8")).deviceToken; } catch {}
+}
+
+function saveToken(deviceToken) {
+  DEVICE_TOKEN = deviceToken;
+  fs.writeFileSync(configPath, JSON.stringify({ deviceToken }), "utf8");
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -14,9 +25,9 @@ function createWindow() {
     frame: false,
     backgroundColor: "#000000",
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true }
+    webPreferences: { contextIsolation: true, preload: path.join(__dirname, "preload.js") }
   });
-  win.loadFile("player.html");
+  win.loadFile(DEVICE_TOKEN ? "player.html" : "pair.html");
   win.on("closed", () => { win = null; });
 }
 
@@ -32,6 +43,15 @@ async function api(route, body) {
 
 async function report(id, status) {
   return api("/api/device/status", { deploymentId: id, status, playerVersion: VERSION });
+}
+
+async function pair(code) {
+  const response = await fetch(API_BASE + "/api/device/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerVersion: VERSION }) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Eşleştirme başarısız.");
+  saveToken(data.deviceToken);
+  await win.loadFile("player.html");
+  poll();
 }
 
 async function poll() {
@@ -61,9 +81,12 @@ async function poll() {
 }
 
 app.whenReady().then(() => {
+  loadConfig();
   createWindow();
   poll();
   setInterval(poll, 10000);
+  const { ipcMain } = require("electron");
+  ipcMain.handle("pair-device", async (_event, code) => { try { await pair(code); return { ok: true }; } catch (error) { return { ok: false, error: error.message }; } });
 });
 
 app.on("window-all-closed", () => app.quit());
