@@ -3,6 +3,37 @@
   "version": "0.1.0",
   "private": true,
   "main": "main.js",
-  "scripts": { "start": "electron ." },
-  "dependencies": { "electron": "^38.1.2" }
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "electron": "^38.1.2"
+  },
+  "description": "DEN LED Studio Windows signage player",
+  "devDependencies": {
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.denajans.denledplayer",
+    "productName": "DEN LED Player",
+    "files": [
+      "main.js",
+      "preload.js",
+      "player.html",
+      "pair.html"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "DEN-LED-Player-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
 }
