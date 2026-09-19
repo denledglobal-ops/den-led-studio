@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   try {
     const supabase = adminClient();
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-    const { data: screen } = await supabase.from("screens").select("id,name").eq("device_token_hash", tokenHash).single();
+    const { data: screen } = await supabase.from("screens").select("id,name,width,height").eq("device_token_hash", tokenHash).single();
     if (!screen) return NextResponse.json({ error: "Cihaz tanınmadı." }, { status: 401 });
 
     await supabase.from("screens").update({ last_seen_at: new Date().toISOString(), device_status: "online" }).eq("id", screen.id);
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       .eq("screen_id", screen.id).eq("status", "queued")
       .order("created_at", { ascending: true }).limit(1).maybeSingle();
 
-    return NextResponse.json({ screen: { id: screen.id, name: screen.name }, deployment: deployment ?? null });
+    return NextResponse.json({ screen: { id: screen.id, name: screen.name, width: screen.width, height: screen.height }, deployment: deployment ?? null });
   } catch (cause) {
     return NextResponse.json({ error: cause instanceof Error ? cause.message : "Cihaz görevi alınamadı." }, { status: 500 });
   }
