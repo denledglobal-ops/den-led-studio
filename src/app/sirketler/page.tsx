@@ -7,7 +7,7 @@ type Org={id:string;name:string;plan:string;trial_ends_at:string|null;created_at
 export default function OrganizationsPage(){
  const router=useRouter(); const [rows,setRows]=useState<Org[]>([]); const [name,setName]=useState(""); const [error,setError]=useState<string|null>(null);
  async function load(){const {data,error}=await createClient().from("organizations").select("id,name,plan,trial_ends_at,created_at").order("created_at",{ascending:false});if(error)setError(error.message);else setRows((data??[]) as Org[]);}
- useEffect(()=>{const s=createClient();s.from("organizations").select("id,name,plan,trial_ends_at,created_at").order("created_at",{ascending:false}).then(({data,error})=>{if(error)setError(error.message);else setRows((data??[]) as Org[]);});},[]);
+ useEffect(()=>{const s=createClient();void (async()=>{const {data,error}=await s.from("organizations").select("id,name,plan,trial_ends_at,created_at").order("created_at",{ascending:false});if(error)setError(error.message);else setRows((data??[]) as Org[]);})();},[]);
  async function createOrg(){if(!name.trim())return;setError(null);const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user){setError("Oturum bulunamadı.");return;}const {data,error}=await s.from("organizations").insert({name:name.trim(),owner_id:user.id}).select("id").single();if(error){setError(error.message);return;}await s.from("organization_members").insert({organization_id:data.id,user_id:user.id,role:"owner"});setName("");await load();}
  function selectOrg(id:string){localStorage.setItem("denled_active_org",id);router.push("/");}
  return <main className="min-h-screen bg-[#07090d] p-5 text-white sm:p-8"><div className="mx-auto max-w-5xl">
