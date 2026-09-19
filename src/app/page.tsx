@@ -18,9 +18,9 @@ const demoProjects = [
   { id: "demo-3", title: "Yeni Sezon", size: "1920 × 1080", status: "Gönderildi", color: "from-cyan-500 to-blue-900", time: "Dün, 18:42" },
 ];
 const demoScreens = [
-  { id: "demo-1", name: "Merkez Mağaza", location: "Kadıköy / İstanbul", status: "Yayında", resolution: "1920 × 640", width: 1920, height: 640 },
-  { id: "demo-2", name: "Şube 02", location: "Ümraniye / İstanbul", status: "Yayında", resolution: "1280 × 384", width: 1280, height: 384 },
-  { id: "demo-3", name: "Vitrin Ekranı", location: "Ataşehir / İstanbul", status: "Beklemede", resolution: "1920 × 1080", width: 1920, height: 1080 },
+  { id: "demo-1", name: "Merkez Mağaza", location: "Kadıköy / İstanbul", status: "Yayında", resolution: "1920 × 640", width: 1920, height: 640, lastSeenAt: new Date().toISOString(), playerVersion: "1.0.0" },
+  { id: "demo-2", name: "Şube 02", location: "Ümraniye / İstanbul", status: "Online", resolution: "1280 × 384", width: 1280, height: 384, lastSeenAt: new Date().toISOString(), playerVersion: "1.0.0" },
+  { id: "demo-3", name: "Vitrin Ekranı", location: "Ataşehir / İstanbul", status: "Offline", resolution: "1920 × 1080", width: 1920, height: 1080, lastSeenAt: null, playerVersion: null },
 ];
 
 const videoStyles = ["Premium", "Enerjik", "Minimal", "Sinematik"] as const;
@@ -33,6 +33,23 @@ const resolutionOptions = [
 ];
 
 type ScreenItem = (typeof demoScreens)[number];
+
+function screenStatus(deviceStatus: string | null, lastSeenAt: string | null) {
+  const fresh = lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < 120000;
+  if (!fresh) return "Offline";
+  if (deviceStatus === "playing") return "Yayında";
+  if (deviceStatus === "error") return "Hata";
+  return "Online";
+}
+
+function lastSeenLabel(value: string | null) {
+  if (!value) return "Henüz bağlanmadı";
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return "Az önce";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} dk önce`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} sa önce`;
+  return `${Math.floor(seconds / 86400)} gün önce`;
+}
 
 export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -72,7 +89,7 @@ export default function Home() {
       setOrganizationId(organization.id);
       const [projectResult, screenResult] = await Promise.all([
         supabase.from("projects").select("id,title,width,height,status,created_at").eq("organization_id", organization.id).order("created_at", { ascending: false }).limit(100),
-        supabase.from("screens").select("id,name,location,width,height,last_seen_at").eq("organization_id", organization.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("screens").select("id,name,location,width,height,last_seen_at,device_status,player_version").eq("organization_id", organization.id).order("created_at", { ascending: false }).limit(5),
       ]);
       if (!active) return;
       const projectRows = projectResult.data ?? [];
@@ -98,10 +115,12 @@ export default function Home() {
         id: item.id,
         name: item.name,
         location: item.location || "Konum eklenmedi",
-        status: item.last_seen_at && Date.now() - new Date(item.last_seen_at).getTime() < 300000 ? "Yayında" : "Beklemede",
+        status: screenStatus(item.device_status, item.last_seen_at),
         resolution: `${item.width} × ${item.height}`,
         width: item.width,
         height: item.height,
+        lastSeenAt: item.last_seen_at,
+        playerVersion: item.player_version,
       })));
       setDataReady(true);
     }
@@ -193,11 +212,11 @@ export default function Home() {
     if (!organizationId) return;
     const supabase = createClient();
     if (screenModal && screenModal !== "new") {
-      const { data, error } = await supabase.from("screens").update(values).eq("id", screenModal.id).select("id,name,location,width,height,last_seen_at").single();
-      if (!error && data) setScreens((current) => current.map((screen) => screen.id === data.id ? { id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: "Beklemede" } : screen));
+      const { data, error } = await supabase.from("screens").update(values).eq("id", screenModal.id).select("id,name,location,width,height,last_seen_at,device_status,player_version").single();
+      if (!error && data) setScreens((current) => current.map((screen) => screen.id === data.id ? { id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version } : screen));
     } else {
-      const { data, error } = await supabase.from("screens").insert({ organization_id: organizationId, ...values }).select("id,name,location,width,height,last_seen_at").single();
-      if (!error && data) setScreens((current) => [{ id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: "Beklemede" }, ...current].slice(0, 5));
+      const { data, error } = await supabase.from("screens").insert({ organization_id: organizationId, ...values }).select("id,name,location,width,height,last_seen_at,device_status,player_version").single();
+      if (!error && data) setScreens((current) => [{ id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version }, ...current].slice(0, 5));
     }
     setScreenModal(null);
   }
@@ -262,7 +281,7 @@ export default function Home() {
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
             <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">Son projeler</h2><p className="mt-1 text-xs text-zinc-600">Üretim ve yayın geçmişiniz</p></div><button onClick={() => router.push("/projeler")} className="text-xs text-cyan-400 hover:text-cyan-300">Tümünü gör</button></div>{projects.length ? <div className="space-y-3">{projects.map((p) => <button type="button" onClick={() => !p.id.startsWith("demo-") && router.push(`/projeler/${p.id}`)} key={p.id} className="group flex w-full items-center gap-4 rounded-2xl border border-white/[.055] bg-white/[.018] p-3 text-left transition hover:border-cyan-400/20 hover:bg-white/[.03]"><div className={`relative grid h-14 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br ${p.color}`}><div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_20%,rgba(255,255,255,.18)_48%,transparent_76%)] bg-[length:220%_100%]" /><Play size={17} fill="white" className="relative" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{p.title}</p><p className="mt-1 text-[11px] text-zinc-600">{p.size} · {p.time}</p></div><span className={`hidden rounded-full px-2.5 py-1 text-[10px] sm:inline ${p.status === "Hazır" ? "bg-cyan-400/10 text-cyan-300" : p.status === "Gönderildi" ? "bg-emerald-400/10 text-emerald-400" : "bg-amber-400/10 text-amber-300"}`}>{p.status}</span><span className="rounded-lg p-2 text-zinc-600 group-hover:text-white"><ChevronRight size={18} /></span></button>)}</div> : <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-white/[.08] bg-gradient-to-b from-white/[.02] to-transparent text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/[.08] text-cyan-400"><Film size={22} /></div><p className="mt-4 text-sm font-medium">İlk projenizi oluşturun</p><p className="mt-1 text-xs text-zinc-600">AI Studio ile birkaç dakikada başlayın.</p></div></div>}</section>
-            <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">LED ekranlar</h2><p className="mt-1 text-xs text-zinc-600">Uzaktan bağlı cihazlar</p></div><button onClick={() => setScreenModal("new")} className="grid h-9 w-9 place-items-center rounded-xl border border-white/[.07] text-zinc-400 hover:border-cyan-400/30 hover:text-cyan-300" aria-label="Yeni LED ekran ekle"><Plus size={17} /></button></div>{screens.length ? <div className="space-y-3">{screens.map((screen) => <div key={screen.id} className="group flex items-center gap-3 rounded-2xl border border-white/[.055] p-3.5 transition hover:border-cyan-400/15"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/[.08] text-cyan-400"><MonitorPlay size={19} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-medium">{screen.name}</p><span className={`h-1.5 w-1.5 rounded-full ${screen.status === "Yayında" ? "bg-emerald-400" : "bg-amber-400"}`} /></div><p className="mt-1 truncate text-[10px] text-zinc-600">{screen.location} · {screen.resolution}</p></div><div className="flex gap-1 opacity-60 transition group-hover:opacity-100"><button onClick={() => setScreenModal(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:text-cyan-300" aria-label={`${screen.name} ekranını düzenle`}><Pencil size={14} /></button><button onClick={() => deleteScreen(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:text-red-300" aria-label={`${screen.name} ekranını sil`}><Trash2 size={14} /></button><button onClick={() => createPairingCode(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:border-cyan-400/30 hover:text-cyan-300" aria-label={`${screen.name} cihazını eşleştir`}><Zap size={14} /></button></div></div>)}</div> : <button onClick={() => setScreenModal("new")} className="grid min-h-48 w-full place-items-center rounded-2xl border border-dashed border-white/[.08] bg-gradient-to-b from-white/[.02] to-transparent text-center"><span><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/[.08] text-cyan-400"><MonitorPlay size={22} /></span><span className="mt-4 block text-sm font-medium">İlk ekranınızı bağlayın</span><span className="mt-1 block text-xs text-zinc-600">Çözünürlük ve konum bilgisini ekleyin.</span></span></button>}<div className="mt-4 flex items-center gap-2 rounded-xl bg-white/[.025] p-3 text-[11px] text-zinc-600"><Clock3 size={14} /> Son senkronizasyon: şimdi</div></section>
+            <section className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-medium">LED ekranlar</h2><p className="mt-1 text-xs text-zinc-600">Uzaktan bağlı cihazlar</p></div><button onClick={() => setScreenModal("new")} className="grid h-9 w-9 place-items-center rounded-xl border border-white/[.07] text-zinc-400 hover:border-cyan-400/30 hover:text-cyan-300" aria-label="Yeni LED ekran ekle"><Plus size={17} /></button></div>{screens.length ? <div className="space-y-3">{screens.map((screen) => <div key={screen.id} className="group flex items-center gap-3 rounded-2xl border border-white/[.055] p-3.5 transition hover:border-cyan-400/15"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/[.08] text-cyan-400"><MonitorPlay size={19} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-medium">{screen.name}</p><span className={`h-1.5 w-1.5 rounded-full ${screen.status === "Yayında" ? "bg-emerald-400" : screen.status === "Online" ? "bg-cyan-400" : screen.status === "Hata" ? "bg-red-400" : "bg-zinc-600"}`} /><span className={`text-[9px] font-medium ${screen.status === "Yayında" ? "text-emerald-400" : screen.status === "Online" ? "text-cyan-400" : screen.status === "Hata" ? "text-red-400" : "text-zinc-500"}`}>{screen.status}</span></div><p className="mt-1 truncate text-[10px] text-zinc-600">{screen.location} · {screen.resolution}</p><p className="mt-1 truncate text-[9px] text-zinc-700">Son bağlantı: {lastSeenLabel(screen.lastSeenAt)}{screen.playerVersion ? ` · Player v${screen.playerVersion}` : ""}</p></div><div className="flex gap-1 opacity-60 transition group-hover:opacity-100"><button onClick={() => setScreenModal(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:text-cyan-300" aria-label={`${screen.name} ekranını düzenle`}><Pencil size={14} /></button><button onClick={() => deleteScreen(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:text-red-300" aria-label={`${screen.name} ekranını sil`}><Trash2 size={14} /></button><button onClick={() => createPairingCode(screen)} className="rounded-lg border border-white/[.07] p-2 text-zinc-500 hover:border-cyan-400/30 hover:text-cyan-300" aria-label={`${screen.name} cihazını eşleştir`}><Zap size={14} /></button></div></div>)}</div> : <button onClick={() => setScreenModal("new")} className="grid min-h-48 w-full place-items-center rounded-2xl border border-dashed border-white/[.08] bg-gradient-to-b from-white/[.02] to-transparent text-center"><span><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/[.08] text-cyan-400"><MonitorPlay size={22} /></span><span className="mt-4 block text-sm font-medium">İlk ekranınızı bağlayın</span><span className="mt-1 block text-xs text-zinc-600">Çözünürlük ve konum bilgisini ekleyin.</span></span></button>}<div className="mt-4 flex items-center gap-2 rounded-xl bg-white/[.025] p-3 text-[11px] text-zinc-600"><Clock3 size={14} /> Son senkronizasyon: şimdi</div></section>
           </div>
         </div>
       </section>
