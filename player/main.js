@@ -8,6 +8,8 @@ let configPath;
 const VERSION = "0.1.0";
 let win;
 let currentDeploymentId = null;
+let polling = false;
+let pollTimer = null;
 
 function loadConfig() {
   configPath = path.join(app.getPath("userData"), "device.json");
@@ -55,7 +57,8 @@ async function pair(code) {
 }
 
 async function poll() {
-  if (!DEVICE_TOKEN) return;
+  if (!DEVICE_TOKEN || polling) return;
+  polling = true;
   try {
     const data = await api("/api/device/next");
     const command = data.command;
@@ -104,6 +107,8 @@ async function poll() {
       try { await report(currentDeploymentId, "failed"); } catch {}
       currentDeploymentId = null;
     }
+  } finally {
+    polling = false;
   }
 }
 
@@ -111,9 +116,10 @@ app.whenReady().then(() => {
   loadConfig();
   createWindow();
   poll();
-  setInterval(poll, 10000);
+  pollTimer = setInterval(poll, 10000);
   const { ipcMain } = require("electron");
   ipcMain.handle("pair-device", async (_event, code) => { try { await pair(code); return { ok: true }; } catch (error) { return { ok: false, error: error.message }; } });
 });
 
+app.on("before-quit", () => { if (pollTimer) clearInterval(pollTimer); });
 app.on("window-all-closed", () => app.quit());
