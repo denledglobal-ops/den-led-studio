@@ -68,10 +68,15 @@ class RunwayVideoProvider implements VideoProvider {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const message = typeof data?.error === "string" ? data.error :
+      const detail =
+        Array.isArray(data?.issues) ? data.issues.map((issue: { message?: string; path?: string[] }) =>
+          `${issue.path?.join(".") ?? "body"}: ${issue.message ?? "geçersiz değer"}`).join("; ") :
+        Array.isArray(data?.error?.issues) ? data.error.issues.map((issue: { message?: string; path?: string[] }) =>
+          `${issue.path?.join(".") ?? "body"}: ${issue.message ?? "geçersiz değer"}`).join("; ") :
+        typeof data?.error === "string" ? data.error :
         typeof data?.message === "string" ? data.message :
-        `Runway API hatası (${response.status})`;
-      throw new Error(message);
+        JSON.stringify(data);
+      throw new Error(`Runway API hatası (${response.status}): ${detail}`);
     }
     return data;
   }
