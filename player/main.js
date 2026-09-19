@@ -60,16 +60,23 @@ async function poll() {
     const data = await api("/api/device/next");
     const command = data.command;
     if (command?.command === "restart") {
+      await api("/api/device/command-status", { commandId: command.id, status: "completed" });
       app.relaunch();
       app.exit(0);
       return;
     }
     if (command?.command === "reload") {
-      await win.reload();
+      try {
+        await win.reload();
+        await api("/api/device/command-status", { commandId: command.id, status: "completed" });
+      } catch {
+        await api("/api/device/command-status", { commandId: command.id, status: "failed" });
+      }
     }
     if (command?.command === "redownload") {
       currentDeploymentId = null;
       try { fs.unlinkSync(path.join(app.getPath("userData"), "current-video.mp4")); } catch {}
+      await api("/api/device/command-status", { commandId: command.id, status: "completed" });
     }
     const deployment = data.deployment;
     const project = deployment?.projects;

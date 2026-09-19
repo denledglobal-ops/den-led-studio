@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       .order("created_at", { ascending: true }).limit(1).maybeSingle();
 
     if (command) {
-      await supabase.from("device_commands").update({ status: "received", received_at: new Date().toISOString() }).eq("id", command.id);
+      await supabase.from("device_commands").update({ received_at: new Date().toISOString() }).eq("id", command.id);
     }
 
     const { data: deployment } = await supabase.from("deployments")
