@@ -29,6 +29,7 @@ const resolutionOptions = [
   { value: "1280x384", label: "1280 × 384", detail: "Şerit ekran" },
   { value: "1920x1080", label: "1920 × 1080", detail: "Full HD" },
   { value: "1080x1920", label: "1080 × 1920", detail: "Dikey ekran" },
+  { value: "custom", label: "Özel ölçü", detail: "LED panel" },
 ];
 
 type ScreenItem = (typeof demoScreens)[number];
@@ -37,6 +38,8 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [resolution, setResolution] = useState("1920x640");
+  const [customWidth, setCustomWidth] = useState(1920);
+  const [customHeight, setCustomHeight] = useState(640);
   const [duration, setDuration] = useState(15);
   const [videoStyle, setVideoStyle] = useState<(typeof videoStyles)[number]>("Premium");
   const [weeklyProduction, setWeeklyProduction] = useState([0, 0, 0, 0, 0, 0, 0]);
@@ -150,7 +153,7 @@ export default function Home() {
     setSaving(true);
     setGenerationError(null);
     const title = prompt.trim().split(/[.!?]/)[0].slice(0, 46) || "Yeni LED Projesi";
-    const [width, height] = resolution.split("x").map(Number);
+    const [width, height] = resolution === "custom" ? [customWidth, customHeight] : resolution.split("x").map(Number);
     const { data, error } = await createClient().from("projects").insert({
       organization_id: organizationId,
       title,
@@ -246,10 +249,11 @@ export default function Home() {
                 <div className="mt-4 flex flex-wrap items-center gap-2"><span className="mr-1 flex items-center gap-1.5 text-[11px] text-zinc-600"><Palette size={13} /> Görsel stil</span>{videoStyles.map((style) => <button key={style} onClick={() => setVideoStyle(style)} className={`rounded-full border px-3 py-1.5 text-[11px] transition ${videoStyle === style ? "border-cyan-400/35 bg-cyan-400/10 text-cyan-300" : "border-white/[.07] text-zinc-500 hover:text-white"}`}>{style}</button>)}</div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
                   <label className="relative flex h-12 items-center rounded-xl border border-white/[.08] bg-white/[.025] px-4"><MonitorPlay size={16} className="mr-3 text-cyan-400" /><span className="mr-2 text-xs text-zinc-600">Ölçü</span><select value={resolution} onChange={(event) => setResolution(event.target.value)} className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-200 outline-none">{resolutionOptions.map((option) => <option key={option.value} value={option.value} className="bg-[#0c1118]">{option.label} · {option.detail}</option>)}</select></label>
+                  {resolution === "custom" ? <div className="grid grid-cols-2 gap-2 sm:col-span-3"><label className="rounded-xl border border-white/[.08] bg-white/[.025] p-3"><span className="text-[10px] text-zinc-600">Genişlik (px)</span><input type="number" min={64} max={8192} step={1} value={customWidth} onChange={(e) => setCustomWidth(Math.max(64, Math.min(8192, Number(e.target.value) || 64)))} className="mt-1 w-full bg-transparent text-sm outline-none"/></label><label className="rounded-xl border border-white/[.08] bg-white/[.025] p-3"><span className="text-[10px] text-zinc-600">Yükseklik (px)</span><input type="number" min={64} max={8192} step={1} value={customHeight} onChange={(e) => setCustomHeight(Math.max(64, Math.min(8192, Number(e.target.value) || 64)))} className="mt-1 w-full bg-transparent text-sm outline-none"/></label></div> : null}
                   <label className="relative flex h-12 items-center rounded-xl border border-white/[.08] bg-white/[.025] px-4"><Timer size={16} className="mr-3 text-violet-400" /><span className="mr-2 text-xs text-zinc-600">Süre</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-200 outline-none">{[10, 15, 20, 30].map((seconds) => <option key={seconds} value={seconds} className="bg-[#0c1118]">{seconds} saniye</option>)}</select></label>
                   <button onClick={createProject} disabled={!prompt.trim() || !organizationId || saving} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-black transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-30"><Sparkles size={17} /> {saving ? "Kaydediliyor" : "Oluştur"}</button>
                 </div>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/[.05] pt-4 text-[11px] text-zinc-600"><span>Seçim: <strong className="font-medium text-zinc-300">{videoStyle} · {resolutionOptions.find((item) => item.value === resolution)?.label} · {duration} sn</strong></span><span>1 video kredisi</span></div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/[.05] pt-4 text-[11px] text-zinc-600"><span>Seçim: <strong className="font-medium text-zinc-300">{videoStyle} · {resolution === "custom" ? `${customWidth} × ${customHeight}` : resolutionOptions.find((item) => item.value === resolution)?.label} · {duration} sn</strong></span><span>1 video kredisi</span></div>
                 {started ? <div className="mt-4 flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/[.06] p-3 text-sm text-cyan-200"><Activity size={17} className="animate-pulse" /> Proje kaydedildi ve video üretim kuyruğuna alındı.</div> : null}
                 {generationError ? <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[.06] p-3 text-sm text-red-200">Video üretimi başlatılamadı: {generationError}</div> : null}
               </div>
