@@ -13,18 +13,29 @@ async function normalizeForLed(input: {
   const workerSecret = process.env.VIDEO_WORKER_SECRET;
   if (!workerUrl || !workerSecret) throw new Error("Video worker is not configured.");
 
-  const response = await fetch(`${workerUrl}/transcode`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${workerSecret}` },
-    body: JSON.stringify({ ...input, fit: "contain" }),
-    cache: "no-store",
-  });
+  let lastError = "Video worker failed.";
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(`${workerUrl}/transcode`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${workerSecret}` },
+        body: JSON.stringify({ ...input, fit: "contain" }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(120_000),
+      });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.outputUrl) {
-    throw new Error(data.error || `Video worker failed: ${response.status}`);
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.outputUrl) {
+        return data as { outputUrl: string; width: number; height: number };
+      }
+      lastError = data.error || `Video worker failed: ${response.status}`;
+      if (response.status >= 400 && response.status < 500) break;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Video worker request failed.";
+    }
+    if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1500));
   }
-  return data as { outputUrl: string; width: number; height: number };
+  throw new Error(lastError);
 }
 
 export async function POST(request: Request) {
