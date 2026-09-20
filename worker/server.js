@@ -57,7 +57,26 @@ function ffmpeg(input, output, width, height, fit) {
   });
 }
 
-app.get("/health", (_req,res) => res.json({ ok:true, service:"den-led-video-worker" }));
+function ffmpegVersion() {
+  return new Promise((resolve) => {
+    const child = spawn("ffmpeg", ["-version"], { stdio:["ignore","pipe","ignore"] });
+    let stdout = "";
+    const timer = setTimeout(() => { child.kill(); resolve(null); }, 3000);
+    child.stdout.on("data", d => { stdout += d.toString(); });
+    child.on("error", () => { clearTimeout(timer); resolve(null); });
+    child.on("close", code => {
+      clearTimeout(timer);
+      if (code !== 0) return resolve(null);
+      resolve(stdout.split("\n")[0] || "ffmpeg");
+    });
+  });
+}
+
+app.get("/health", async (_req,res) => {
+  const version = await ffmpegVersion();
+  if (!version) return res.status(503).json({ ok:false, service:"den-led-video-worker", ffmpeg:false });
+  res.json({ ok:true, service:"den-led-video-worker", ffmpeg:true, version });
+});
 
 app.post("/transcode", auth, async (req,res) => {
   const { inputUrl, width: rawWidth, height: rawHeight, organizationId, projectId, fit = "contain" } = req.body ?? {};
