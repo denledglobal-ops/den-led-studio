@@ -42,8 +42,12 @@ export async function POST(request: Request) {
     }
 
     const now = new Date();
-    const day = now.getUTCDay();
-    const time = now.toISOString().slice(11, 19);
+    const timezone = process.env.DEFAULT_SCHEDULE_TIMEZONE || "Europe/Istanbul";
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(now);
+    const part = (type: string) => parts.find((p) => p.type === type)?.value || "";
+    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const day = dayMap[part("weekday")];
+    const time = `${part("hour")}:${part("minute")}:${part("second")}`;
     const { data: schedules } = await supabase.from("screen_schedules")
       .select("id,priority,starts_at,ends_at,daily_start,daily_end,days_of_week,playlists(id,name,playlist_items(id,position,duration_seconds,projects(id,title,output_url,width,height,status)))")
       .eq("screen_id", screen.id).eq("is_active", true)
