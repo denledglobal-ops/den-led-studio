@@ -94,8 +94,8 @@ app.post("/transcode", auth, async (req,res) => {
     await ffmpeg(input,output,width,height,fit === "cover" ? "cover" : "contain");
     const supabase=createClient(required("SUPABASE_URL"),required("SUPABASE_SERVICE_ROLE_KEY"),{auth:{persistSession:false}});
     const path=`${organizationId}/processed/${projectId}-${width}x${height}-${randomUUID()}.mp4`;
-    const chunks=[]; for await (const chunk of createReadStream(output)) chunks.push(chunk);
-    const { error }=await supabase.storage.from("project-videos").upload(path,Buffer.concat(chunks),{contentType:"video/mp4",upsert:false});
+    const outputStream = createReadStream(output);
+    const { error }=await supabase.storage.from("project-videos").upload(path,outputStream,{contentType:"video/mp4",upsert:false,duplex:"half"});
     if (error) throw error;
     const { data }=supabase.storage.from("project-videos").getPublicUrl(path);
     res.json({ ok:true, outputUrl:data.publicUrl, width, height, fit:fit === "cover" ? "cover" : "contain" });
