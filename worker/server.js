@@ -104,9 +104,22 @@ app.post("/transcode", auth, async (req,res) => {
   const dir=await mkdtemp(join(tmpdir(),"den-led-"));
   const input=join(dir,"input.mp4"), output=join(dir,"output.mp4");
   try {
-    const source=await fetch(sourceUrl, { redirect: "error" });
+    const source=await fetch(sourceUrl, { redirect: "error", signal: AbortSignal.timeout(60_000) });
     if (!source.ok || !source.body) throw new Error(`Input download failed: ${source.status}`);
-    await pipeline(Readable.fromWeb(source.body), createWriteStream(input));
+    const contentType = source.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().startsWith("video/") && !contentType.toLowerCase().includes("octet-stream")) {
+      throw new Error(`Input is not a video: ${contentType || "unknown content type"}`);
+    }
+    const declaredLength = Number(source.headers.get("content-length") || 0);
+    const maxInputBytes = 250 * 1024 * 1024;
+    if (declaredLength > maxInputBytes) throw new Error("Input video exceeds 250 MB limit");
+    let received = 0;
+    const limitedBody = Readable.fromWeb(source.body).map(chunk => {
+      received += chunk.length;
+      if (received > maxInputBytes) throw new Error("Input video exceeds 250 MB limit");
+      return chunk;
+    });
+    await pipeline(limitedBody, createWriteStream(input));
     await ffmpeg(input,output,width,height,fit === "cover" ? "cover" : "contain");
     const actual = await probeDimensions(output);
     if (actual.width !== width || actual.height !== height) {
