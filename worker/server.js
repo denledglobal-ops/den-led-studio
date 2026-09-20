@@ -1,6 +1,7 @@
 import express from "express";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import { createWriteStream, createReadStream } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -33,11 +34,27 @@ function even(value) {
   return n % 2 === 0 ? n : n - 1;
 }
 
+function validUuid(value) {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function blockedIp(hostname) {
+  if (!isIP(hostname)) return false;
+  const h = hostname.toLowerCase();
+  if (h === "::1" || h === "::" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe8") || h.startsWith("fe9") || h.startsWith("fea") || h.startsWith("feb")) return true;
+  const parts = h.split(".").map(Number);
+  if (parts.length !== 4) return false;
+  const [a,b] = parts;
+  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+}
+
 function safeInputUrl(value) {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:") return null;
-    if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) return null;
+    if (url.username || url.password) return null;
+    if (url.port && url.port !== "443") return null;
+    if (url.hostname === "localhost" || url.hostname.endsWith(".localhost") || blockedIp(url.hostname)) return null;
     return url;
   } catch {
     return null;
@@ -97,6 +114,7 @@ app.get("/health", async (_req,res) => {
 app.post("/transcode", auth, async (req,res) => {
   const { inputUrl, width: rawWidth, height: rawHeight, organizationId, projectId, fit = "contain" } = req.body ?? {};
   if (!inputUrl || !organizationId || !projectId) return res.status(400).json({ error:"inputUrl, organizationId and projectId are required" });
+  if (!validUuid(organizationId) || !validUuid(projectId)) return res.status(400).json({ error:"organizationId and projectId must be valid UUIDs" });
   const sourceUrl = safeInputUrl(inputUrl);
   if (!sourceUrl) return res.status(400).json({ error:"A valid HTTPS inputUrl is required" });
   const width=even(rawWidth), height=even(rawHeight);
