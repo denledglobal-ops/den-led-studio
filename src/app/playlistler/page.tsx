@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ListVideo, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ListVideo, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 type Project = { id:string; title:string; width:number; height:number };
-type Playlist = { id:string; name:string; playlist_items:Array<{id:string;position:number;projects:Project|null}> };
+type Playlist = { id:string; name:string; playlist_items:Array<{id:string;position:number;duration_seconds:number|null;projects:Project|null}> };
 
 export default function PlaylistsPage() {
   const router=useRouter();
@@ -22,7 +22,7 @@ export default function PlaylistsPage() {
     if(!org) return;
     setOrganizationId(org.id);
     const [pl,pr]=await Promise.all([
-      supabase.from("playlists").select("id,name,playlist_items(id,position,projects(id,title,width,height))").eq("organization_id",org.id).order("created_at",{ascending:false}),
+      supabase.from("playlists").select("id,name,playlist_items(id,position,duration_seconds,projects(id,title,width,height))").eq("organization_id",org.id).order("created_at",{ascending:false}),
       supabase.from("projects").select("id,title,width,height").eq("organization_id",org.id).eq("status","ready").order("created_at",{ascending:false})
     ]);
     if(pl.error) setError(pl.error.message);
@@ -43,6 +43,18 @@ export default function PlaylistsPage() {
     const {error}=await createClient().from("playlist_items").insert({playlist_id:playlistId,project_id:projectId,position});
     if(error){setError(error.message);return;} await load();
   }
+  async function updateDuration(id:string,value:number){
+    const duration=Math.max(1,Math.min(3600,Math.round(value||10)));
+    const {error}=await createClient().from("playlist_items").update({duration_seconds:duration}).eq("id",id);
+    if(error){setError(error.message);return;} await load();
+  }
+  async function moveItem(playlistId:string,id:string,direction:-1|1){
+    const items=[...(playlists.find(p=>p.id===playlistId)?.playlist_items??[])].sort((a,b)=>a.position-b.position);
+    const index=items.findIndex(x=>x.id===id),other=items[index+direction]; if(index<0||!other)return;
+    const s=createClient(); const current=items[index];
+    const a=await s.from("playlist_items").update({position:other.position}).eq("id",current.id); if(a.error){setError(a.error.message);return;}
+    const b=await s.from("playlist_items").update({position:current.position}).eq("id",other.id); if(b.error){setError(b.error.message);return;} await load();
+  }
   async function removeItem(id:string){
     await createClient().from("playlist_items").delete().eq("id",id); await load();
   }
@@ -61,7 +73,7 @@ export default function PlaylistsPage() {
       </div>
       <div className="space-y-5">{playlists.map(pl=><section key={pl.id} className="rounded-3xl border border-white/[.07] bg-[#0c0f14] p-5">
         <div className="mb-4 flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300"><ListVideo size={19}/></div><div className="flex-1"><h2 className="font-medium">{pl.name}</h2><p className="text-xs text-zinc-600">{pl.playlist_items.length} video</p></div><button onClick={()=>removePlaylist(pl.id)} className="rounded-lg p-2 text-zinc-600 hover:text-red-300"><Trash2 size={16}/></button></div>
-        <div className="space-y-2">{[...pl.playlist_items].sort((a,b)=>a.position-b.position).map((item,i)=><div key={item.id} className="flex items-center rounded-xl border border-white/[.05] px-3 py-3 text-sm"><span className="mr-3 text-xs text-zinc-600">{i+1}</span><span className="flex-1">{item.projects?.title||"Video"}</span><span className="mr-3 text-xs text-zinc-600">{item.projects?.width}×{item.projects?.height}</span><button onClick={()=>removeItem(item.id)} className="text-zinc-600 hover:text-red-300"><Trash2 size={14}/></button></div>)}</div>
+        <div className="space-y-2">{[...pl.playlist_items].sort((a,b)=>a.position-b.position).map((item,i)=><div key={item.id} className="flex items-center rounded-xl border border-white/[.05] px-3 py-3 text-sm"><span className="mr-3 text-xs text-zinc-600">{i+1}</span><span className="flex-1">{item.projects?.title||"Video"}</span><span className="mr-3 text-xs text-zinc-600">{item.projects?.width}×{item.projects?.height}</span><label className="mr-2 flex items-center gap-1 text-xs text-zinc-500"><input type="number" min="1" max="3600" defaultValue={item.duration_seconds??10} onBlur={e=>updateDuration(item.id,Number(e.target.value))} className="h-8 w-16 rounded-lg border border-white/10 bg-black/20 px-2 text-white"/> sn</label><button disabled={i===0} onClick={()=>moveItem(pl.id,item.id,-1)} className="mr-1 text-zinc-600 hover:text-cyan-300 disabled:opacity-20"><ArrowUp size={14}/></button><button disabled={i===pl.playlist_items.length-1} onClick={()=>moveItem(pl.id,item.id,1)} className="mr-2 text-zinc-600 hover:text-cyan-300 disabled:opacity-20"><ArrowDown size={14}/></button><button onClick={()=>removeItem(item.id)} className="text-zinc-600 hover:text-red-300"><Trash2 size={14}/></button></div>)}</div>
         <select defaultValue="" onChange={e=>{addProject(pl.id,e.target.value);e.currentTarget.value="";}} className="mt-4 h-10 w-full rounded-xl border border-white/10 bg-[#11151c] px-3 text-sm text-zinc-300"><option value="" disabled>Hazır video ekle…</option>{projects.map(p=><option key={p.id} value={p.id}>{p.title} · {p.width}×{p.height}</option>)}</select>
       </section>)}
       {!playlists.length&&<div className="rounded-3xl border border-dashed border-white/10 p-12 text-center text-sm text-zinc-500">Henüz playlist yok. İlk playlistinizi oluşturun.</div>}
