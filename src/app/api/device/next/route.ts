@@ -28,10 +28,18 @@ export async function POST(request: Request) {
       await supabase.from("device_commands").update({ received_at: new Date().toISOString() }).eq("id", command.id);
     }
 
-    const { data: deployment } = await supabase.from("deployments")
+    let { data: deployment } = await supabase.from("deployments")
       .select("id,status,projects(id,title,output_url,width,height)")
       .eq("screen_id", screen.id).eq("status", "queued")
       .order("created_at", { ascending: true }).limit(1).maybeSingle();
+
+    if (!deployment && command?.command === "redownload") {
+      const latest = await supabase.from("deployments")
+        .select("id,status,projects(id,title,output_url,width,height)")
+        .eq("screen_id", screen.id).eq("status", "live")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      deployment = latest.data ?? null;
+    }
 
     const now = new Date();
     const day = now.getUTCDay();
