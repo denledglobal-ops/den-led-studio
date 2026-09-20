@@ -44,6 +44,22 @@ function safeInputUrl(value) {
   }
 }
 
+function probeDimensions(file) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("ffprobe", ["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=s=x:p=0",file], { stdio:["ignore","pipe","pipe"] });
+    let stdout="", stderr="";
+    child.stdout.on("data", d => { stdout += d.toString(); });
+    child.stderr.on("data", d => { stderr += d.toString().slice(-2000); });
+    child.on("error", reject);
+    child.on("close", code => {
+      if (code !== 0) return reject(new Error(`FFprobe exited ${code}: ${stderr.slice(-800)}`));
+      const [width,height] = stdout.trim().split("x").map(Number);
+      if (!width || !height) return reject(new Error("FFprobe returned invalid dimensions"));
+      resolve({ width, height });
+    });
+  });
+}
+
 function ffmpeg(input, output, width, height, fit) {
   const filter = fit === "cover"
     ? `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`
@@ -92,6 +108,10 @@ app.post("/transcode", auth, async (req,res) => {
     if (!source.ok || !source.body) throw new Error(`Input download failed: ${source.status}`);
     await pipeline(Readable.fromWeb(source.body), createWriteStream(input));
     await ffmpeg(input,output,width,height,fit === "cover" ? "cover" : "contain");
+    const actual = await probeDimensions(output);
+    if (actual.width !== width || actual.height !== height) {
+      throw new Error(`Output dimension mismatch: expected ${width}x${height}, got ${actual.width}x${actual.height}`);
+    }
     const supabase=createClient(required("SUPABASE_URL"),required("SUPABASE_SERVICE_ROLE_KEY"),{auth:{persistSession:false}});
     const path=`${organizationId}/processed/${projectId}-${width}x${height}-${randomUUID()}.mp4`;
     const outputStream = createReadStream(output);
