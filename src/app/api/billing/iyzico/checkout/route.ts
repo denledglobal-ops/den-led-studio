@@ -33,14 +33,17 @@ export async function POST(request: Request) {
     }).select("id").single();
     if (error || !order) return NextResponse.json({ error: error?.message || "Sipariş oluşturulamadı." }, { status: 500 });
 
-    const origin = new URL(request.url).origin;
+    const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL;
+    const origin = configuredOrigin ? configuredOrigin.replace(/\/$/, "") : new URL(request.url).origin;
+    const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const buyerIp = forwardedFor || request.headers.get("x-real-ip") || "127.0.0.1";
     const displayName = (user.email.split("@")[0] || "DEN LED").slice(0, 30);
     const result = await iyzicoPost("/payment/iyzipos/checkoutform/initialize/auth/ecom", {
       locale: "tr", conversationId: order.id, price, paidPrice: price, currency: "TRY",
       basketId: order.id, paymentGroup: "PRODUCT",
       callbackUrl: origin + "/api/billing/iyzico/callback", enabledInstallments: [1],
       buyer: { id: user.id, name: displayName, surname: "Musteri", email: user.email,
-        identityNumber: "11111111111", registrationAddress: "Turkiye", city: "Istanbul", country: "Turkey", ip: "127.0.0.1" },
+        identityNumber: "11111111111", registrationAddress: "Turkiye", city: "Istanbul", country: "Turkey", ip: buyerIp },
       shippingAddress: { contactName: displayName, address: "Turkiye", city: "Istanbul", country: "Turkey" },
       billingAddress: { contactName: displayName, address: "Turkiye", city: "Istanbul", country: "Turkey" },
       basketItems: [{ id: plan, name: "DEN LED " + plan, category1: "SaaS", itemType: "VIRTUAL", price }],
