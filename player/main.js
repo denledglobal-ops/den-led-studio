@@ -184,7 +184,7 @@ if (!gotSingleInstanceLock) app.quit();
 else app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
 app.whenReady().then(() => {
-  if (!powerSaveBlocker.isStarted(powerBlockerId)) powerBlockerId = powerSaveBlocker.start("prevent-display-sleep");
+  if (powerBlockerId === null || !powerSaveBlocker.isStarted(powerBlockerId)) powerBlockerId = powerSaveBlocker.start("prevent-display-sleep");
   app.setLoginItemSettings({
     openAtLogin: true,
     openAsHidden: false,
