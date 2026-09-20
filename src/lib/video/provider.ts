@@ -98,7 +98,8 @@ class RunwayVideoProvider implements VideoProvider {
         : Math.abs(targetRatio - sourceRatio) / sourceRatio > 0.08
           ? " Compose with generous safe margins so the scene can be adapted to the target LED aspect ratio without cutting important subjects, logos or text."
           : "";
-    const promptText = `${request.prompt}${framingHint}`;
+    const qualityHint = " Create a polished commercial advertising video for a professional LED display: strong visual hierarchy, clean composition, high contrast, smooth intentional motion, crisp product presentation, no watermarks, no UI overlays, no random letters, and no unreadable generated text. Leave clear negative space when copy or a logo may be overlaid later.";
+    const promptText = `${request.prompt}${qualityHint}${framingHint}`;
 
     const data = await this.request("/text_to_video", {
       method: "POST",
