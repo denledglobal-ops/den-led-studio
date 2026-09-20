@@ -23,6 +23,7 @@ function enableAutoStart() {
 }
 let currentPlaylistId = null;
 let playlistIndex = 0;
+let playlistItemStartedAt = 0;
 
 function cachedVideoPath() {
   return path.join(app.getPath("userData"), "current-video.mp4");
@@ -41,8 +42,10 @@ async function downloadFile(url, file) {
 }
 async function playScheduledPlaylist(playlist, screen) {
   if (!playlist?.items?.length || !win) return false;
-  if (currentPlaylistId !== playlist.id) { currentPlaylistId = playlist.id; playlistIndex = 0; }
+  if (currentPlaylistId !== playlist.id) { currentPlaylistId = playlist.id; playlistIndex = 0; playlistItemStartedAt = 0; }
   const item = playlist.items[playlistIndex % playlist.items.length];
+  const durationMs = Math.max(1, Number(item.durationSeconds || item.duration_seconds || 10)) * 1000;
+  if (playlistItemStartedAt && Date.now() - playlistItemStartedAt < durationMs) return true;
   const project = item.project;
   if (!project?.output_url) return false;
   const file = await downloadFile(project.output_url, playlistVideoPath(item.id));
@@ -51,6 +54,7 @@ async function playScheduledPlaylist(playlist, screen) {
   const projectRatio = Number(project.width || 0) / Math.max(Number(project.height || 1), 1);
   const fit = Math.abs(projectRatio - screenRatio) / Math.max(screenRatio, 0.001) <= 0.02 ? "fill" : "contain";
   await win.loadFile("player.html", { query: { video: file, fit, once: "1" } });
+  playlistItemStartedAt = Date.now();
   playlistIndex = (playlistIndex + 1) % playlist.items.length;
   return true;
 }
@@ -142,6 +146,7 @@ async function poll() {
       return;
     }
     currentPlaylistId = null;
+    playlistItemStartedAt = 0;
     const deployment = data.deployment;
     const project = deployment?.projects;
     if (!deployment || !project?.output_url) return;
