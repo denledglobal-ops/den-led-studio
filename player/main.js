@@ -11,6 +11,15 @@ let currentDeploymentId = null;
 let polling = false;
 let pollTimer = null;
 let currentVideoFile = null;
+let quitting = false;
+
+function enableAutoStart() {
+  if (process.platform !== "win32" || !app.isPackaged) return;
+  app.setLoginItemSettings({
+    openAtLogin: true,
+    path: process.execPath,
+  });
+}
 let currentPlaylistId = null;
 let playlistIndex = 0;
 
@@ -76,7 +85,10 @@ function createWindow() {
   } else {
     win.loadFile("pair.html");
   }
-  win.on("closed", () => { win = null; });
+  win.on("closed", () => {
+    win = null;
+    if (!quitting) setTimeout(createWindow, 1000);
+  });
 }
 
 async function api(route, body) {
@@ -190,5 +202,17 @@ process.on("unhandledRejection", (error) => {
   try { fs.appendFileSync(path.join(app.getPath("userData"), "player-errors.log"), `[${new Date().toISOString()}] ${error?.stack || error}\n`); } catch {}
 });
 
-app.on("before-quit", () => { if (pollTimer) clearInterval(pollTimer); });
+app.on("before-quit", () => { quitting = true; if (pollTimer) clearInterval(pollTimer); });
+process.on("uncaughtException", () => {
+  if (!quitting) {
+    app.relaunch();
+    app.exit(1);
+  }
+});
+process.on("unhandledRejection", () => {
+  if (!quitting) {
+    app.relaunch();
+    app.exit(1);
+  }
+});
 app.on("window-all-closed", () => app.quit());
