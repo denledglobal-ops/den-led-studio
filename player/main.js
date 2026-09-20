@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, powerSaveBlocker } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
@@ -12,6 +12,7 @@ let polling = false;
 let pollTimer = null;
 let currentVideoFile = null;
 let quitting = false;
+let powerBlockerId = null;
 
 function enableAutoStart() {
   if (process.platform !== "win32" || !app.isPackaged) return;
@@ -134,11 +135,8 @@ async function poll() {
         await api("/api/device/command-status", { commandId: command.id, status: "failed" });
       }
     }
-    if (command?.command === "redownload") {
-      currentDeploymentId = null;
-      try { fs.unlinkSync(cachedVideoPath()); currentVideoFile = null; } catch {}
-      await api("/api/device/command-status", { commandId: command.id, status: "completed" });
-    }
+    const redownloadCommand = command?.command === "redownload" ? command : null;
+    if (redownloadCommand) currentDeploymentId = null;
     if (data.playlist?.items?.length) {
       await playScheduledPlaylist(data.playlist, data.screen);
       return;
@@ -147,7 +145,7 @@ async function poll() {
     const deployment = data.deployment;
     const project = deployment?.projects;
     if (!deployment || !project?.output_url) return;
-    if (deployment.id === currentDeploymentId) return;
+    if (deployment.id === currentDeploymentId && !redownloadCommand) return;
     currentDeploymentId = deployment.id;
     await report(deployment.id, "downloading");
 
@@ -168,6 +166,9 @@ async function poll() {
     const ratioDelta = Math.abs(projectRatio - screenRatio) / Math.max(screenRatio, 0.001);
     const fit = ratioDelta <= 0.02 ? "fill" : "contain";
     await win.loadFile("player.html", { query: { video: file, fit } });
+    if (redownloadCommand) {
+      await api("/api/device/command-status", { commandId: redownloadCommand.id, status: "completed" });
+    }
   } catch (error) {
     // Network/API failures must not interrupt the last successfully downloaded ad.
     if (!currentVideoFile || !fs.existsSync(currentVideoFile)) {
@@ -178,7 +179,12 @@ async function poll() {
   }
 }
 
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) app.quit();
+else app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+
 app.whenReady().then(() => {
+  if (!powerSaveBlocker.isStarted(powerBlockerId)) powerBlockerId = powerSaveBlocker.start("prevent-display-sleep");
   app.setLoginItemSettings({
     openAtLogin: true,
     openAsHidden: false,
@@ -202,7 +208,11 @@ process.on("unhandledRejection", (error) => {
   try { fs.appendFileSync(path.join(app.getPath("userData"), "player-errors.log"), `[${new Date().toISOString()}] ${error?.stack || error}\n`); } catch {}
 });
 
-app.on("before-quit", () => { quitting = true; if (pollTimer) clearInterval(pollTimer); });
+app.on("before-quit", () => {
+  quitting = true;
+  if (pollTimer) clearInterval(pollTimer);
+  if (powerBlockerId !== null && powerSaveBlocker.isStarted(powerBlockerId)) powerSaveBlocker.stop(powerBlockerId);
+});
 process.on("uncaughtException", () => {
   if (!quitting) {
     app.relaunch();
