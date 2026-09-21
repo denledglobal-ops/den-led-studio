@@ -37,8 +37,7 @@ export default function LoginPage() {
       const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
       const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
       const destination = email.trim().toLowerCase() === "denledglobal@gmail.com" && safeNext === "/" ? "/yonetim" : safeNext;
-      router.replace(destination);
-      router.refresh();
+      window.location.assign(destination);
     }
     setLoading(false);
   }
