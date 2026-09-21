@@ -1,12 +1,12 @@
 "use client";
 
 import { Film, LoaderCircle, LockKeyhole, Mail, Sparkles } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState } from "react";\nimport { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter();
+  const router = useRouter();\n  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +34,7 @@ export default function LoginPage() {
     } else if (mode === "signup" && !result.data.session) {
       setMessage("Hesabınız oluşturuldu. E-postanıza gelen doğrulama bağlantısını açın.");
     } else {
-      router.replace("/");
+      const requested = searchParams.get("next");\n      const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";\n      const destination = email.trim().toLowerCase() === "denledglobal@gmail.com" && safeNext === "/" ? "/yonetim" : safeNext;\n      router.replace(destination);
       router.refresh();
     }
     setLoading(false);
