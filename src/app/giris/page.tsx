@@ -13,6 +13,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
+  async function forgotPassword() {
+    if (!email) { setMessage("Önce e-posta adresinizi yazın."); return; }
+    setLoading(true); setMessage("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/callback?type=recovery` });
+    setLoading(false);
+    setMessage(error ? error.message : "Şifre yenileme bağlantısı e-posta adresinize gönderildi.");
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -53,6 +62,7 @@ export default function LoginPage() {
         <form onSubmit={submit} className="mt-7 space-y-4">
           <label className="block"><span className="mb-2 block text-xs text-zinc-400">E-posta</span><span className="relative block"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600" size={17} /><input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 w-full rounded-xl border border-white/[.08] bg-black/20 pl-11 pr-4 text-sm outline-none focus:border-cyan-400/40" placeholder="firma@ornek.com" /></span></label>
           <label className="block"><span className="mb-2 block text-xs text-zinc-400">Şifre</span><span className="relative block"><LockKeyhole className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600" size={17} /><input required minLength={8} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 w-full rounded-xl border border-white/[.08] bg-black/20 pl-11 pr-4 text-sm outline-none focus:border-cyan-400/40" placeholder="En az 8 karakter" /></span></label>
+          {mode === "login" && <button type="button" onClick={forgotPassword} disabled={loading} className="w-full text-right text-xs text-cyan-300 hover:text-cyan-200">Şifremi unuttum</button>}
           {message && <p className={`rounded-xl border p-3 text-xs leading-5 ${message.startsWith("Hesabınız") ? "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300" : "border-red-400/20 bg-red-400/[.06] text-red-300"}`}>{message}</p>}
           <button disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 text-sm font-semibold text-[#051017] transition hover:bg-cyan-300 disabled:opacity-60">{loading && <LoaderCircle className="animate-spin" size={17} />}{mode === "login" ? "Giriş yap" : "Hesap oluştur"}</button>
         </form>
