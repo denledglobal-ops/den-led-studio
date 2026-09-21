@@ -234,14 +234,17 @@ export default function Home() {
   }
 
   async function saveScreen(values: { name: string; location: string; width: number; height: number }) {
-    if (!organizationId) return;
+    if (!organizationId) throw new Error("Şirket bilgisi henüz yüklenmedi. Sayfayı yenileyip tekrar deneyin.");
+    setGenerationError(null);
     const supabase = createClient();
     if (screenModal && screenModal !== "new") {
       const { data, error } = await supabase.from("screens").update(values).eq("id", screenModal.id).select("id,name,location,width,height,last_seen_at,device_status,player_version").single();
-      if (!error && data) setScreens((current) => current.map((screen) => screen.id === data.id ? { id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version } : screen));
+      if (error || !data) { const message=error?.message || "Ekran güncellenemedi."; setGenerationError(message); throw new Error(message); }
+      setScreens((current) => current.map((screen) => screen.id === data.id ? { id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version } : screen));
     } else {
       const { data, error } = await supabase.from("screens").insert({ organization_id: organizationId, ...values }).select("id,name,location,width,height,last_seen_at,device_status,player_version").single();
-      if (!error && data) setScreens((current) => [{ id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version }, ...current].slice(0, 5));
+      if (error || !data) { const message=error?.message || "Ekran oluşturulamadı."; setGenerationError(message); throw new Error(message); }
+      setScreens((current) => [{ id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version }, ...current].slice(0, 5));
     }
     setScreenModal(null);
   }
