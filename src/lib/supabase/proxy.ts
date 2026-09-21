@@ -24,7 +24,7 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims);
   const isAuthRoute = request.nextUrl.pathname.startsWith("/giris") || request.nextUrl.pathname.startsWith("/auth");
-  const isPublicRoute = request.nextUrl.pathname === "/tanitim";
+  const isPublicRoute = request.nextUrl.pathname === "/tanitim" || request.nextUrl.pathname === "/sifre-yenile";
 
   if (!signedIn && !isAuthRoute && !isPublicRoute) {
     const loginUrl = new URL("/giris", request.url);
