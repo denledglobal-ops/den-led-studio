@@ -54,7 +54,7 @@ function lastSeenLabel(value: string | null) {
 }
 
 export default function Home() {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);\n  const [isAdmin, setIsAdmin] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [resolution, setResolution] = useState("1920x640");
   const [customWidth, setCustomWidth] = useState(1920);
@@ -304,7 +304,7 @@ export default function Home() {
         <div className="mb-10 flex items-center justify-between"><Logo /><button onClick={() => setMobileOpen(false)} className="rounded-lg p-2 text-zinc-400 hover:bg-white/5 lg:hidden" aria-label="Menüyü kapat"><X size={19} /></button></div>
         <nav className="space-y-1.5">{navItems.map((item) => <button key={item.label} onClick={() => { if ("href" in item && item.href) router.push(item.href); if ("target" in item && item.target === "screens") document.getElementById("led-screens")?.scrollIntoView({ behavior: "smooth" }); setMobileOpen(false); }} className={`group flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm transition ${item.active ? "bg-cyan-400/10 text-cyan-300" : "text-zinc-400 hover:bg-white/[.04] hover:text-white"}`}><item.icon size={18} strokeWidth={1.8} /><span>{item.label}</span>{item.count && <span className="ml-auto rounded-md bg-white/[.06] px-2 py-0.5 text-[11px] text-zinc-400">{item.count}</span>}</button>)}</nav>
         <div className="my-6 h-px bg-white/[.06]" />
-        <nav className="space-y-1">{[{ label: "Ayarlar", icon: Settings }, { label: "Yardım Merkezi", icon: CircleHelp }].map((item) => <button key={item.label} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm text-zinc-500 transition hover:bg-white/[.04] hover:text-white"><item.icon size={18} />{item.label}</button>)}</nav>
+        <nav className="space-y-1">{isAdmin ? <button onClick={() => { router.push("/yonetim"); setMobileOpen(false); }} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-400/10"><Settings size={18} />Üst Yönetim</button> : null}{[{ label: "Ayarlar", icon: Settings }, { label: "Yardım Merkezi", icon: CircleHelp }].map((item) => <button key={item.label} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm text-zinc-500 transition hover:bg-white/[.04] hover:text-white"><item.icon size={18} />{item.label}</button>)}</nav>
         <div className="absolute bottom-5 left-5 right-5 rounded-2xl border border-cyan-400/15 bg-gradient-to-br from-cyan-400/[.09] to-blue-600/[.04] p-4"><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-cyan-300"><Zap size={14} fill="currentColor" /> PRO PLAN</div><div className="mb-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full w-[72%] rounded-full bg-cyan-400" /></div><p className="text-[11px] text-zinc-400">18 / 25 video kredisi</p></div>
       </aside>
       <section className="relative lg:pl-[264px]">
