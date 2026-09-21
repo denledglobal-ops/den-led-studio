@@ -27,7 +27,7 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute = request.nextUrl.pathname === "/tanitim";
 
   if (!signedIn && !isAuthRoute && !isPublicRoute) {
-    return NextResponse.redirect(new URL("/giris", request.url));
+    const loginUrl = new URL("/giris", request.url);\n    loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);\n    return NextResponse.redirect(loginUrl);
   }
   if (signedIn && request.nextUrl.pathname === "/giris") {
     return NextResponse.redirect(new URL("/", request.url));
