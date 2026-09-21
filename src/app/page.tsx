@@ -86,6 +86,8 @@ export default function Home() {
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
     async function loadDashboard() {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsAdmin(user?.email?.toLowerCase() === "denledglobal@gmail.com");
       const { data: organization } = await supabase
         .from("organizations")
         .select("id")
