@@ -11,7 +11,7 @@ export default async function ManagementPage() {
 
   const allowed = (process.env.ADMIN_EMAILS || "denledglobal@gmail.com")
     .split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
-  if (!user.email || !allowed.includes(user.email.toLowerCase())) redirect("/");
+  if (!user.email || !allowed.includes(user.email.toLowerCase())) return <main className="min-h-screen bg-slate-950 text-white grid place-items-center p-6"><div className="max-w-xl rounded-3xl border border-amber-400/20 bg-white/5 p-8"><p className="text-xs tracking-[.3em] text-amber-300">DEN LED • ÜST YÖNETİM</p><h1 className="mt-3 text-2xl font-semibold">Yönetim yetkisi gerekli</h1><p className="mt-3 text-slate-400">Bu oturum üst yönetici hesabı olarak tanımlı değil.</p><p className="mt-4 rounded-xl bg-black/30 p-3 font-mono text-sm text-cyan-300">{user.email || "E-posta bulunamadı"}</p><a href="/" className="mt-6 inline-block rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950">Müşteri paneline dön</a></div></main>;
 
   const admin = createAdminClient();
   const [orgs, screens, projects, deployments] = await Promise.all([
