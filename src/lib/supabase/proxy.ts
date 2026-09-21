@@ -32,7 +32,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   if (signedIn && request.nextUrl.pathname === "/giris") {
-    return NextResponse.redirect(new URL("/", request.url));
+    const next = request.nextUrl.searchParams.get("next");
+    const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+    return NextResponse.redirect(new URL(safeNext, request.url));
   }
 
   return response;
