@@ -1,12 +1,14 @@
 "use client";
 
 import { Film, LoaderCircle, LockKeyhole, Mail, Sparkles } from "lucide-react";
-import { FormEvent, useState } from "react";\nimport { useSearchParams } from "next/navigation";
+import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter();\n  const searchParams = useSearchParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +36,10 @@ export default function LoginPage() {
     } else if (mode === "signup" && !result.data.session) {
       setMessage("Hesabınız oluşturuldu. E-postanıza gelen doğrulama bağlantısını açın.");
     } else {
-      const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;\n      const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";\n      const destination = email.trim().toLowerCase() === "denledglobal@gmail.com" && safeNext === "/" ? "/yonetim" : safeNext;\n      router.replace(destination);
+      const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
+      const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+      const destination = email.trim().toLowerCase() === "denledglobal@gmail.com" && safeNext === "/" ? "/yonetim" : safeNext;
+      router.replace(destination);
       router.refresh();
     }
     setLoading(false);
