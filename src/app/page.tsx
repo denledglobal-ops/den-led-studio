@@ -187,7 +187,7 @@ export default function Home() {
       setUploading(false);
       return;
     }
-    setProjects((current) => [{ id: data.id, title: data.title, size: "Hazır video", status: "Hazır", color: "from-cyan-500 to-blue-900", time: "şimdi" }, ...current].slice(0, 5));
+    setProjects((current) => [{ id: data.id, title: data.title, size: `${data.width} × ${data.height}`, status: "Hazır", color: "from-cyan-500 to-blue-900", time: "şimdi" }, ...current].slice(0, 5));
     setUploading(false);
     router.push(`/projeler/${data.id}`);
   }
@@ -197,7 +197,7 @@ export default function Home() {
     setSaving(true);
     setGenerationError(null);
     const title = prompt.trim().split(/[.!?]/)[0].slice(0, 46) || "Yeni LED Projesi";
-    const [width, height] = resolution === "custom" ? [customWidth, customHeight] : resolution.split("x").map(Number);
+    const [rawWidth, rawHeight] = resolution === "custom" ? [customWidth, customHeight] : resolution.split("x").map(Number);\n    const width = rawWidth % 2 === 0 ? rawWidth : rawWidth - 1;\n    const height = rawHeight % 2 === 0 ? rawHeight : rawHeight - 1;
     const { data, error } = await createClient().from("projects").insert({
       organization_id: organizationId,
       title,
