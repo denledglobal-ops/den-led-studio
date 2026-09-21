@@ -54,7 +54,8 @@ function lastSeenLabel(value: string | null) {
 }
 
 export default function Home() {
-  const [mobileOpen, setMobileOpen] = useState(false);\n  const [isAdmin, setIsAdmin] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [resolution, setResolution] = useState("1920x640");
   const [customWidth, setCustomWidth] = useState(1920);
