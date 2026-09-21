@@ -2,13 +2,11 @@
 
 import { Film, LoaderCircle, LockKeyhole, Mail, Sparkles } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
