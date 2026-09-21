@@ -34,7 +34,7 @@ export default function LoginPage() {
     } else if (mode === "signup" && !result.data.session) {
       setMessage("Hesabınız oluşturuldu. E-postanıza gelen doğrulama bağlantısını açın.");
     } else {
-      const requested = searchParams.get("next");\n      const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";\n      const destination = email.trim().toLowerCase() === "denledglobal@gmail.com" && safeNext === "/" ? "/yonetim" : safeNext;\n      router.replace(destination);
+      const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;\n      const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";\n      const destination = email.trim().toLowerCase() === "denledglobal@gmail.com" && safeNext === "/" ? "/yonetim" : safeNext;\n      router.replace(destination);
       router.refresh();
     }
     setLoading(false);
