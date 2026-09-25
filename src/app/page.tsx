@@ -245,7 +245,7 @@ export default function Home() {
       if (error || !data) { const message=error?.message || "Ekran güncellenemedi."; setGenerationError(message); throw new Error(message); }
       setScreens((current) => current.map((screen) => screen.id === data.id ? { id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version } : screen));
     } else {
-      const { data, error } = await supabase.from("screens").insert({ organization_id: organizationId, ...values }).select("id,name,location,width,height,last_seen_at,device_status,player_version").single();
+      const response = await fetch("/api/screens",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(values)});\n      const result = await response.json();\n      const data = result.screen; const error = response.ok ? null : { message: result.error || "Ekran oluşturulamadı." };
       if (error || !data) { const message=error?.message || "Ekran oluşturulamadı."; setGenerationError(message); throw new Error(message); }
       setScreens((current) => [{ id: data.id, name: data.name, location: data.location || "Konum eklenmedi", width: data.width, height: data.height, resolution: `${data.width} × ${data.height}`, status: screenStatus(data.device_status, data.last_seen_at), lastSeenAt: data.last_seen_at, playerVersion: data.player_version }, ...current].slice(0, 5));
     }
