@@ -60,7 +60,7 @@ export default function Home() {
   const [resolution, setResolution] = useState("1920x640");
   const [customWidth, setCustomWidth] = useState(1920);
   const [customHeight, setCustomHeight] = useState(640);
-  const [duration, setDuration] = useState(15);
+  const [duration, setDuration] = useState(10);
   const [videoStyle, setVideoStyle] = useState<(typeof videoStyles)[number]>("Premium");
   const [weeklyProduction, setWeeklyProduction] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [started, setStarted] = useState(false);
@@ -156,7 +156,7 @@ export default function Home() {
     return () => { active = false; if (refreshTimer) clearInterval(refreshTimer); };
   }, []);
 
-  async function uploadReadyVideo(file: File) {
+  async function readVideoMetadata(file: File) {\n    return await new Promise<{width:number;height:number;duration:number}>((resolve,reject)=>{\n      const video=document.createElement("video"); const url=URL.createObjectURL(file); video.preload="metadata";\n      video.onloadedmetadata=()=>{const result={width:video.videoWidth||1920,height:video.videoHeight||1080,duration:Math.max(1,Math.round(video.duration||1))};URL.revokeObjectURL(url);resolve(result);};\n      video.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Video bilgileri okunamadı."));}; video.src=url;\n    });\n  }\n\n  async function uploadReadyVideo(file: File) {
     if (!organizationId || uploading) return;
     if (!["video/mp4", "video/webm", "video/quicktime"].includes(file.type)) {
       setGenerationError("Yalnızca MP4, WebM veya MOV video yükleyebilirsiniz.");
@@ -166,7 +166,7 @@ export default function Home() {
       setGenerationError("Video dosyası en fazla 100 MB olabilir.");
       return;
     }
-    setUploading(true);
+    setUploading(true);\n    let metadata={width:1920,height:1080,duration:1};\n    try { metadata=await readVideoMetadata(file); } catch { /* upload can continue with safe defaults */ }
     setGenerationError(null);
     const supabase = createClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -181,7 +181,7 @@ export default function Home() {
     const title = file.name.replace(/\.[^.]+$/, "").slice(0, 46) || "Yüklenen Video";
     const { data, error } = await supabase.from("projects").insert({
       organization_id: organizationId, title, prompt: "Hazır video yüklemesi",
-      width: 1920, height: 1080, duration_seconds: 0, status: "ready",
+      width: metadata.width, height: metadata.height, duration_seconds: metadata.duration, status: "ready",
       output_url: publicData.publicUrl, provider: "upload",
     }).select("id,title,width,height,status,created_at").single();
     if (error || !data) {
@@ -190,7 +190,7 @@ export default function Home() {
       setUploading(false);
       return;
     }
-    setProjects((current) => [{ id: data.id, title: data.title, size: "Hazır video", status: "Hazır", color: "from-cyan-500 to-blue-900", time: "şimdi" }, ...current].slice(0, 5));
+    setProjects((current) => [{ id: data.id, title: data.title, size: `${data.width} × ${data.height}`, status: "Hazır", color: "from-cyan-500 to-blue-900", time: "şimdi" }, ...current].slice(0, 5));
     setUploading(false);
     router.push(`/projeler/${data.id}`);
   }
@@ -200,7 +200,7 @@ export default function Home() {
     setSaving(true);
     setGenerationError(null);
     const title = prompt.trim().split(/[.!?]/)[0].slice(0, 46) || "Yeni LED Projesi";
-    const [width, height] = resolution === "custom" ? [customWidth, customHeight] : resolution.split("x").map(Number);
+    const [rawWidth, rawHeight] = resolution === "custom" ? [customWidth, customHeight] : resolution.split("x").map(Number);\n    const width = rawWidth % 2 === 0 ? rawWidth : rawWidth - 1;\n    const height = rawHeight % 2 === 0 ? rawHeight : rawHeight - 1;
     const { data, error } = await createClient().from("projects").insert({
       organization_id: organizationId,
       title,
@@ -324,7 +324,7 @@ export default function Home() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
                   <label className="relative flex h-12 items-center rounded-xl border border-white/[.08] bg-white/[.025] px-4"><MonitorPlay size={16} className="mr-3 text-cyan-400" /><span className="mr-2 text-xs text-zinc-600">Ölçü</span><select value={resolution} onChange={(event) => setResolution(event.target.value)} className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-200 outline-none">{resolutionOptions.map((option) => <option key={option.value} value={option.value} className="bg-[#0c1118]">{option.label} · {option.detail}</option>)}</select></label>
                   {resolution === "custom" ? <div className="grid grid-cols-2 gap-2 sm:col-span-3"><label className="rounded-xl border border-white/[.08] bg-white/[.025] p-3"><span className="text-[10px] text-zinc-600">Genişlik (px)</span><input type="number" min={64} max={8192} step={1} value={customWidth} onChange={(e) => setCustomWidth(Math.max(64, Math.min(8192, Number(e.target.value) || 64)))} className="mt-1 w-full bg-transparent text-sm outline-none"/></label><label className="rounded-xl border border-white/[.08] bg-white/[.025] p-3"><span className="text-[10px] text-zinc-600">Yükseklik (px)</span><input type="number" min={64} max={8192} step={1} value={customHeight} onChange={(e) => setCustomHeight(Math.max(64, Math.min(8192, Number(e.target.value) || 64)))} className="mt-1 w-full bg-transparent text-sm outline-none"/></label></div> : null}
-                  <label className="relative flex h-12 items-center rounded-xl border border-white/[.08] bg-white/[.025] px-4"><Timer size={16} className="mr-3 text-violet-400" /><span className="mr-2 text-xs text-zinc-600">Süre</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-200 outline-none">{[10, 15, 20, 30].map((seconds) => <option key={seconds} value={seconds} className="bg-[#0c1118]">{seconds} saniye</option>)}</select></label>
+                  <label className="relative flex h-12 items-center rounded-xl border border-white/[.08] bg-white/[.025] px-4"><Timer size={16} className="mr-3 text-violet-400" /><span className="mr-2 text-xs text-zinc-600">Süre</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-200 outline-none">{[10].map((seconds) => <option key={seconds} value={seconds} className="bg-[#0c1118]">{seconds} saniye</option>)}</select></label>
                   <button onClick={createProject} disabled={!prompt.trim() || !organizationId || saving} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-black transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-30"><Sparkles size={17} /> {saving ? "Kaydediliyor" : "Oluştur"}</button>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/[.05] pt-4 text-[11px] text-zinc-600"><span>Seçim: <strong className="font-medium text-zinc-300">{videoStyle} · {resolution === "custom" ? `${customWidth} × ${customHeight}` : resolutionOptions.find((item) => item.value === resolution)?.label} · {duration} sn</strong></span><span>1 video kredisi</span></div>
